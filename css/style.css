@@ -1,0 +1,1202 @@
+/* ─────────────────────────────── tokens ─────────────────────────────── */
+
+:root {
+  /* Palette is koi's own (~/.koi/config.json), so the site and the CLI match. */
+  --pumpkin: #f86546;
+  --coral:   #eb6f5c;
+  --umber:   #7b3e00;
+  --silver:  #a9a9a9;
+  --blue:    #76f1f5;
+
+  --bg:      #1e1e1e;
+  /* Opaque on purpose: at 94% the koi's bright dots still ghosted through
+     panels and fought with the text. They stay in the margins instead. */
+  --panel:   #252525;
+  --line:    rgba(169, 169, 169, 0.16);
+
+  /* Lets unpanelled text sit over the swimming koi and stay legible. */
+  --halo: 0 0 4px var(--bg), 0 0 9px var(--bg), 0 0 17px var(--bg);
+
+  --text:    #dcdcda;
+  --dim:     #8e8e8c;
+  --faint:   #6a6a68;
+
+  --mono: "DejaVu Sans Mono", "JetBrains Mono", "Fira Code",
+          "Liberation Mono", Menlo, Consolas, monospace;
+
+  --col: 820px;
+  /* The gutter the full-bleed tool page lines its content up on. */
+  --gutter-wide: max(clamp(1rem, 6vw, 4rem), calc(50vw - 520px));
+}
+
+/* ──────────────────────────────── base ──────────────────────────────── */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+/* The hidden attribute only carries `display: none` from the UA sheet, so any
+   author `display` rule beats it — a flex or grid panel stays on screen while
+   marked hidden. Make the attribute win outright. */
+[hidden] { display: none !important; }
+
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 15px;
+  line-height: 1.7;
+  overflow-x: hidden;
+}
+
+a { color: var(--coral); text-decoration: none; }
+a:hover { color: var(--pumpkin); }
+a:focus-visible,
+button:focus-visible,
+summary:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+.accent { color: var(--pumpkin); }
+
+/* Anything that sits directly on the canvas rather than inside a panel. */
+.landing__name, .landing__role, .icon-hint, .empty, .tool-page {
+  text-shadow: var(--halo);
+}
+
+/* ───────────────────────── background layers ────────────────────────── */
+
+#c {
+  position: fixed;
+  inset: 0;
+  display: block;
+  z-index: 0;
+  /* Starts hidden and is faded in by site.js, which also fades it back out
+     before a navigation so the backdrop does not hard-cut between pages.
+     Safe to default to 0: every page's content is rendered by script anyway,
+     so there is no no-JS case where this would hide a working page. */
+  opacity: 0;
+  transition: opacity 0.42s ease;
+}
+#c.is-in { opacity: 1; }
+
+@media (prefers-reduced-motion: reduce) {
+  #c { opacity: 1; transition: none; }
+}
+
+/* ─────────────────────────────── layout ─────────────────────────────── */
+
+main {
+  position: relative;
+  z-index: 2;
+  max-width: var(--col);
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+
+.section {
+  padding: clamp(3.5rem, 9vw, 6rem) 0 0;
+  scroll-margin-top: 1rem;
+}
+
+
+/* ────────────────────────────── landing ─────────────────────────────── */
+
+.landing {
+  min-height: 100svh;
+  display: grid;
+  place-items: center;
+  padding: 2rem 1rem;
+  max-width: none;
+}
+
+.landing__inner { text-align: center; }
+
+.landing__name {
+  margin: 0;
+  font-size: clamp(2.8rem, 13vw, 5.5rem);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  color: #fff;
+}
+
+.landing__role {
+  margin: 0.8rem 0 0;
+  color: var(--pumpkin);
+  font-size: clamp(0.85rem, 3vw, 1.05rem);
+  letter-spacing: 0.06em;
+}
+
+/* Static fallback: each role stays whole, only separators are break points. */
+.role__part { white-space: nowrap; }
+.role__sep  { margin: 0 0.2em; opacity: 0.5; }
+
+/* Cycling status line. Out to the right, in from the left, both fading. */
+.role--cycle {
+  white-space: nowrap;
+  transition: opacity 0.42s ease, transform 0.42s ease;
+}
+.role--cycle.is-out  { opacity: 0; transform: translateX(26px); }
+.role--cycle.is-in   { opacity: 0; transform: translateX(-26px); }
+.role--cycle.is-skip { transition: none; }
+
+/* Names the hovered icon's destination. The slot is always in the layout and
+   keeps its height, so revealing the label never nudges the icons. */
+.icon-hint {
+  margin: clamp(1.8rem, 5vw, 2.6rem) 0 0;
+  min-height: 1.7em;   /* matches the inherited line-height, so the empty
+                           slot is exactly as tall as the filled one */
+  font-size: 0.78rem;
+  letter-spacing: 0.07em;
+  white-space: nowrap;
+  opacity: 0;
+  transform: translateY(5px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  pointer-events: none;
+}
+.icon-hint.is-on { opacity: 1; transform: translateY(0); }
+.icon-hint__name { color: var(--pumpkin); }
+.icon-hint__sep  { color: var(--faint); margin: 0 0.45em; }
+.icon-hint__to   { color: var(--silver); }
+
+.iconrow {
+  display: flex;
+  justify-content: center;
+  gap: clamp(0.6rem, 3vw, 1.1rem);
+  margin-top: 0.7rem;
+}
+
+/* A translucent chip rather than a bare outline: the koi swim right behind
+   these, and a border alone left them hard to pick out. Resting a notch below
+   full strength also keeps them quieter than the name above. */
+.iconrow a {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(30, 30, 30, 0.94);
+  /* The glyph carries the resting dimness, not the element's opacity: that
+     would fade the backdrop too and let the koi swim through the chip. */
+  color: var(--dim);
+  transition: color 0.16s ease, border-color 0.16s ease, background 0.16s ease;
+}
+.iconrow a:hover,
+.iconrow a:focus-visible {
+  color: var(--pumpkin);
+  border-color: rgba(248, 101, 70, 0.5);
+  background: rgba(48, 33, 28, 0.95);
+}
+.iconrow svg { width: 21px; height: 21px; display: block; }
+
+/* ──────────────────────────────── card ──────────────────────────────── */
+
+/* Mirrors print_report_box: rounded frame, diagonal gradient edge, label
+   notched into the top border. */
+.card {
+  position: relative;
+  margin: 0 0 1.75rem;
+  padding: 2rem clamp(1.1rem, 4vw, 1.9rem) 1.6rem;
+  border-radius: 10px;
+  background: var(--panel);
+}
+
+.card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, var(--pumpkin), var(--coral) 55%, rgba(169, 169, 169, 0.22));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+          mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+          mask-composite: exclude;
+  pointer-events: none;
+}
+
+.card__label {
+  position: absolute;
+  top: 0;
+  left: clamp(0.9rem, 3vw, 1.5rem);
+  transform: translateY(-50%);
+  background: var(--panel);
+  padding: 0 0.7rem;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--pumpkin);
+  letter-spacing: 0.04em;
+}
+
+.card__tagline {
+  margin: 0 0 1rem;
+  color: var(--silver);
+  font-style: italic;
+  font-size: 0.9rem;
+}
+
+.card__summary { margin: 0 0 1.4rem; }
+
+.card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0 0 1.4rem;
+}
+
+.chip {
+  font-size: 0.74rem;
+  letter-spacing: 0.04em;
+  color: var(--dim);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.12rem 0.62rem;
+  white-space: nowrap;
+}
+.chip--on {
+  color: var(--pumpkin);
+  border-color: rgba(248, 101, 70, 0.4);
+}
+
+/* key: value rows, like the CLI's report box body */
+.rows { margin: 0 0 1.5rem; }
+
+.row {
+  display: grid;
+  grid-template-columns: minmax(7.5rem, 11rem) 1fr;
+  gap: 0.2rem 1rem;
+  padding: 0.3rem 0;
+  border-top: 1px solid var(--line);
+}
+.row:first-child { border-top: 0; }
+.row__k { color: var(--coral); font-size: 0.85rem; }
+.row__v { color: var(--dim); font-size: 0.88rem; }
+
+.card__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+  align-items: center;
+}
+.card__links a::before { content: '→ '; color: var(--faint); }
+
+pre.cmd {
+  margin: 0 0 1.4rem;
+  padding: 0.7rem 0.95rem;
+  background: rgba(0, 0, 0, 0.32);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow-x: auto;
+  font-size: 0.85rem;
+  color: var(--text);
+}
+pre.cmd code::before { content: '$ '; color: var(--pumpkin); }
+
+/* ──────────────────────────────── blog ──────────────────────────────── */
+
+/* On a panel for the same reason the writeup rows are: the date and tag line
+   is faint by design and the koi swim straight through it otherwise. */
+.post {
+  border-top: 1px solid var(--line);
+  background: var(--panel);
+}
+.post:last-child { border-bottom: 1px solid var(--line); }
+
+.post__head {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.15rem 0.85rem;
+  align-items: baseline;
+  padding: 1.05rem 0.95rem;
+  background: none;
+  border: 0;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.post__head:hover .post__title { color: var(--pumpkin); }
+
+.post__marker {
+  color: var(--faint);
+  transition: transform 0.18s ease;
+  line-height: 1.7;
+}
+.post.is-open .post__marker {
+  transform: rotate(90deg);
+  color: var(--pumpkin);
+}
+
+.post__title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.post__sub {
+  grid-column: 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 0.8rem;
+  align-items: center;
+  font-size: 0.78rem;
+  color: var(--faint);
+}
+.post__sub time { color: var(--silver); }
+.post__tag::before { content: '#'; opacity: 0.55; }
+
+.post__excerpt {
+  grid-column: 2;
+  margin: 0.4rem 0 0;
+  color: var(--dim);
+  font-size: 0.88rem;
+}
+
+.post__body {
+  display: none;
+  padding: 0 0.95rem 1.6rem;
+  max-width: 70ch;
+}
+.post.is-open .post__body { display: block; }
+
+.post__body p { margin: 0 0 1rem; }
+.post__body h4 {
+  margin: 1.6rem 0 0.6rem;
+  font-size: 0.92rem;
+  letter-spacing: 0.08em;
+  text-transform: lowercase;
+  color: var(--coral);
+}
+.post__body ul { margin: 0 0 1rem; padding-left: 1.15rem; }
+.post__body li { margin: 0 0 0.3rem; }
+.post__body li::marker { color: var(--umber); }
+
+.post__body pre {
+  margin: 0 0 1.2rem;
+  padding: 0.8rem 1rem;
+  background: rgba(0, 0, 0, 0.32);
+  border: 1px solid var(--line);
+  border-left: 2px solid var(--umber);
+  border-radius: 6px;
+  overflow-x: auto;
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+
+.empty {
+  color: var(--faint);
+  font-size: 0.9rem;
+  padding: 1.5rem 0;
+  border-top: 1px solid var(--line);
+}
+
+/* ──────────────────────────── small screens ─────────────────────────── */
+
+@media (max-width: 560px) {
+  body { font-size: 14px; }
+  .row { grid-template-columns: 1fr; gap: 0; }
+  .row__k { color: var(--coral); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .iconrow a,
+  .icon-hint { transition: none; }
+}
+
+/* ────────────────────────────── edge back ───────────────────────────── */
+
+/* These pages carry no header. The way back is the edge of the viewport
+   itself: bring the pointer near one and it lights up.
+
+   The default below is NOT that, though - it is a plain corner control. A
+   full-height strip is only safe once something has told us a mouse is
+   driving, because on a touch screen it would sit over the page swallowing
+   taps, and because the proximity it reacts to does not exist there. The
+   media query for this lies in some browsers, so edge-back.js upgrades on the
+   first real mouse move instead and adds .is-edge. */
+.edge-back {
+  position: fixed;
+  top: 0.9rem;
+  left: 0.9rem;
+  z-index: 6;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  padding: 0.45rem 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel);
+  font: inherit;
+  color: var(--text);
+  cursor: pointer;
+}
+
+/* One corner control is enough; the pair only means something as two edges. */
+.edge-back--right { display: none; }
+
+/* ── upgraded: the edge is the control ── */
+
+.edge-back.is-edge {
+  top: 0;
+  bottom: 0;
+  left: auto;
+  right: auto;
+  width: clamp(88px, 10vw, 150px);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  opacity: var(--glow, 0);
+  transition: opacity 0.22s ease;
+  /* Invisible but still full height, so it has to leave the hit-testing
+     alone until it is actually showing. */
+  pointer-events: none;
+}
+
+.edge-back--left.is-edge  { left: 0; }
+.edge-back--right.is-edge { right: 0; display: grid; }
+.edge-back.is-edge.is-live { pointer-events: auto; }
+
+/* The halo, thrown inwards from the edge rather than sitting as a panel over
+   it: the gradient's centre is on the edge itself. */
+.edge-back.is-edge::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(72% 58% at 0% 50%,
+              rgba(248, 101, 70, 0.44), rgba(248, 101, 70, 0.13) 45%, transparent 76%);
+}
+.edge-back--right.is-edge::before {
+  background: radial-gradient(72% 58% at 100% 50%,
+              rgba(248, 101, 70, 0.44), rgba(248, 101, 70, 0.13) 45%, transparent 76%);
+}
+
+/* A filament on the edge itself, brightest at the middle. */
+.edge-back.is-edge::after {
+  content: '';
+  position: absolute;
+  top: 14%;
+  bottom: 14%;
+  width: 2px;
+  pointer-events: none;
+  background: linear-gradient(to bottom, transparent, var(--pumpkin), transparent);
+}
+.edge-back--left.is-edge::after  { left: 0; }
+.edge-back--right.is-edge::after { right: 0; }
+
+.edge-back__label {
+  position: relative;
+  font-size: 0.78rem;
+  letter-spacing: 0.1em;
+  color: #fff;
+  font-weight: 700;
+  /* Already white; what was costing it legibility is the backdrop, so the
+     knockout is tighter and deeper than --halo rather than merely repeated. */
+  text-shadow: 0 0 2px var(--bg), 0 0 4px var(--bg), 0 0 8px var(--bg),
+               0 0 14px var(--bg), 0 0 22px var(--bg);
+  white-space: nowrap;
+}
+
+/* Keyboard users never generate proximity, so focus has to light it itself. */
+.edge-back.is-edge:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+.edge-back:focus-visible { outline: none; }
+
+/* The label stays white even under the pointer. Tinting it on hover put the
+   orange right where the text has to be read, over the brightest part of the
+   backdrop — and the feedback is redundant anyway, since coming near the edge
+   already lights the whole strip. Keyboard focus still needs a mark of its
+   own, hence the underline. */
+.edge-back:focus-visible .edge-back__label {
+  text-decoration: underline;
+  text-underline-offset: 0.35em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .edge-back.is-edge { transition: none; }
+}
+
+/* ───────────────────────── standalone pages ─────────────────────────── */
+
+/* No hero above them, so they need their own clearance under the nav. */
+.section--page {
+  padding-top: clamp(1.5rem, 5vw, 2.5rem);
+  min-height: 100svh;
+}
+
+.page-lede {
+  margin: -1rem 0 2rem;
+  color: var(--dim);
+  font-size: 0.9rem;
+  max-width: 62ch;
+  text-shadow: var(--halo);
+}
+
+.wu-status,
+.wu-error {
+  padding: 1.2rem 0;
+  font-size: 0.9rem;
+  color: var(--dim);
+  text-shadow: var(--halo);
+}
+.wu-error { color: var(--coral); }
+
+/* ─────────────────────────── writeup index ──────────────────────────── */
+
+.wu-group { margin: 0 0 2.5rem; }
+
+.wu-group__head {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  margin: 0 0 0.9rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--pumpkin);
+  text-shadow: var(--halo);
+}
+.wu-group__count {
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--faint);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0 0.5rem;
+  font-size: 0.72rem;
+}
+
+.wu-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(216px, 1fr));
+  gap: 0.8rem;
+}
+
+.wu-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.95rem 1.05rem;
+  border: 1px solid var(--pumpkin);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  transition: background 0.16s ease, transform 0.16s ease, box-shadow 0.16s ease;
+}
+.wu-card:hover {
+  color: #fff;
+  background: #2e2420;
+  transform: translateY(-2px);
+  box-shadow: 0 0 0 1px var(--pumpkin), 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+
+.wu-card__name {
+  font-size: 0.95rem;
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.wu-card__langs { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+
+.wu-lang {
+  font-size: 0.66rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--faint);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 0 0.32rem;
+}
+.wu-card:hover .wu-lang { color: var(--silver); border-color: rgba(248, 101, 70, 0.4); }
+
+/* ────────────────────────── writeup document ────────────────────────── */
+
+#wu-doc {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: clamp(1.1rem, 4vw, 2.2rem);
+}
+
+.wu-doc__bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--line);
+}
+
+
+.wu-langs { display: flex; gap: 0.4rem; }
+.wu-lang-tab {
+  font-size: 0.76rem;
+  color: var(--dim);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0.1rem 0.55rem;
+}
+.wu-lang-tab:hover { color: var(--text); border-color: var(--silver); }
+.wu-lang-tab.is-on {
+  color: var(--pumpkin);
+  border-color: rgba(248, 101, 70, 0.5);
+  background: rgba(248, 101, 70, 0.07);
+}
+
+.wu-doc__head { padding: 1.6rem 0 1.2rem; }
+.wu-doc__platform {
+  margin: 0;
+  font-size: 0.74rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--coral);
+}
+.wu-doc__title {
+  margin: 0.35rem 0 0;
+  font-size: clamp(1.4rem, 5vw, 2rem);
+  line-height: 1.2;
+  color: #fff;
+}
+.wu-doc__source {
+  margin: 0.6rem 0 0;
+  font-size: 0.75rem;
+  color: var(--faint);
+}
+.wu-doc__source a { color: var(--faint); text-decoration: underline; }
+.wu-doc__source a:hover { color: var(--coral); }
+
+/* ───────────────────────── rendered markdown ────────────────────────── */
+
+.md {
+  max-width: 74ch;
+  border-top: 1px solid var(--line);
+  padding-top: 1.6rem;
+}
+
+.md > :first-child { margin-top: 0; }
+
+.md h1, .md h2, .md h3, .md h4, .md h5, .md h6 {
+  margin: 2.2rem 0 0.8rem;
+  line-height: 1.3;
+  color: #fff;
+}
+.md h1 { font-size: 1.5rem; }
+.md h2 {
+  font-size: 1.18rem;
+  color: var(--pumpkin);
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid var(--line);
+}
+.md h3 { font-size: 1.02rem; color: var(--coral); }
+.md h4, .md h5, .md h6 { font-size: 0.92rem; color: var(--silver); }
+
+.md p { margin: 0 0 1.05rem; }
+.md a { text-decoration: underline; text-underline-offset: 2px; }
+
+.md ul, .md ol { margin: 0 0 1.05rem; padding-left: 1.3rem; }
+.md li { margin: 0 0 0.35rem; }
+.md li::marker { color: var(--umber); }
+.md li > ul, .md li > ol { margin-top: 0.35rem; }
+
+.md code {
+  font-family: var(--mono);
+  font-size: 0.86em;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 0.05em 0.32em;
+  color: var(--coral);
+  word-break: break-word;
+}
+
+.md pre {
+  margin: 0 0 1.3rem;
+  padding: 0.9rem 1.05rem;
+  background: rgba(0, 0, 0, 0.38);
+  border: 1px solid var(--line);
+  border-left: 2px solid var(--pumpkin);
+  border-radius: 6px;
+  overflow-x: auto;
+  line-height: 1.55;
+}
+.md pre code {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--text);
+  font-size: 0.84rem;
+  word-break: normal;
+  white-space: pre;
+}
+
+.md blockquote {
+  margin: 0 0 1.2rem;
+  padding: 0.1rem 0 0.1rem 1rem;
+  border-left: 2px solid var(--umber);
+  color: var(--dim);
+}
+.md blockquote p:last-child { margin-bottom: 0; }
+
+.md img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0.4rem 0 1.3rem;
+  border-radius: 6px;
+  /* No fill and no frame: writeups carry logos and badges with real
+     transparency, and either one draws a box around empty pixels. */
+}
+
+.md hr {
+  margin: 2rem 0;
+  border: 0;
+  height: 1px;
+  background: linear-gradient(90deg, var(--pumpkin), transparent);
+}
+
+.md table {
+  width: 100%;
+  margin: 0 0 1.3rem;
+  border-collapse: collapse;
+  font-size: 0.86rem;
+  display: block;
+  overflow-x: auto;
+}
+.md th, .md td {
+  border: 1px solid var(--line);
+  padding: 0.4rem 0.7rem;
+  text-align: left;
+}
+.md th { color: var(--pumpkin); font-weight: 700; }
+
+.md kbd {
+  font-family: var(--mono);
+  font-size: 0.8em;
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  padding: 0.05em 0.35em;
+}
+
+@media (max-width: 560px) {
+  .wu-grid { grid-template-columns: 1fr 1fr; gap: 0.6rem; }
+  .wu-card { padding: 0.8rem 0.85rem; }
+  #wu-doc { padding: 1rem 0.85rem; }
+}
+
+/* ──────────────────────── tools: character select ───────────────────── */
+
+/* Nothing sits above the cards any more, so they take the viewport and sit in
+   the middle of it rather than clinging to the top edge. .section--page
+   already stretches the section to 100svh; this claims what is left under its
+   top padding, so centring here costs the page no scrollbar. */
+#tool-index {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: calc(100svh - clamp(1.5rem, 5vw, 2.5rem));
+}
+
+.tool-grid {
+  display: grid;
+  /* A fixed card rather than 1fr: with only a couple of tools, stretching
+     them across the column turns a roster into two billboards.
+
+     250px, not the 193px that let four sit in one row: at that width the card
+     had 156px inside it while the status and version chips need 171px side by
+     side, so they wrapped and pushed the card tall and narrow. The content
+     sets the floor here, not the number of cards that fit. */
+  grid-template-columns: repeat(auto-fit, minmax(178px, 250px));
+  justify-content: center;
+  gap: 1rem;
+}
+
+.tool-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  /* Roomy on purpose. At 0.55rem of gap and 1.1rem of padding the card was
+     correct and airless: everything fit, nothing had space to be read. */
+  gap: 0.85rem;
+  padding: 1.9rem 1.3rem 1.6rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  color: var(--text);
+  overflow: hidden;
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+/* The pick-me flourish: a warm wash that rises from the bottom on hover. */
+.tool-card::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 70%;
+  background: linear-gradient(to top, rgba(248, 101, 70, 0.09), transparent);
+  opacity: 0;
+  transition: opacity 0.18s ease;
+  pointer-events: none;
+}
+
+.tool-card:hover,
+.tool-card:focus-visible {
+  color: var(--text);
+  transform: translateY(-4px);
+  border-color: var(--pumpkin);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.45);
+}
+.tool-card:hover::after,
+.tool-card:focus-visible::after { opacity: 1; }
+
+/* Fixed height, both kinds centred in it: the baked art is nine rows where a
+   generated crest is three, and without a common box the one card carrying it
+   would push its own name and tagline below the others in the row. */
+.tool-card__sigil {
+  display: grid;
+  place-items: center;
+  height: 6.1rem;
+  margin: 0 0 0.3rem;
+  font-size: 1.45rem;
+  line-height: 1;
+  letter-spacing: 0.04em;
+  color: var(--silver);
+  transition: color 0.18s ease, transform 0.18s ease;
+}
+
+/* Sized to clear the narrowest the grid allows a card to get (a 178px track,
+   leaving about 140px inside), so the art never pushes a card wider. */
+.tool-card__sigil--art {
+  font-size: 0.64rem;
+  letter-spacing: 0;
+}
+.tool-card:hover .tool-card__sigil {
+  color: var(--pumpkin);
+  transform: scale(1.06);
+}
+
+.tool-card__class {
+  font-size: 0.72rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--coral);
+}
+
+.tool-card__name {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.tool-card__tagline {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.65;
+  color: var(--dim);
+}
+
+.tool-card__foot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.45rem;
+  margin-top: 0.45rem;
+}
+
+/* The card's chips carry more weight than the inline ones elsewhere. */
+.tool-card__foot .chip {
+  font-size: 0.78rem;
+  padding: 0.24rem 0.72rem;
+}
+
+/* ─────────────────────────────── tool page ──────────────────────────── */
+
+/* Breaks out of the reading column: a tool gets the whole viewport rather
+   than sitting in a card like the index entries do. */
+.tool-page {
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+  /* The column comes from the padding rather than a max-width on each child:
+     that way every element lines up on it, including shrink-to-fit ones like
+     the back link, which auto margins would have centred instead. */
+  /* 50vw, not 50%: a percentage padding resolves against the parent block,
+     which is the 820px reading column, not the viewport. */
+  padding: clamp(2.5rem, 7vw, 4.5rem) var(--gutter-wide) 4rem;
+}
+
+
+.tool-hero {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: clamp(1.1rem, 4vw, 2.4rem);
+  padding-bottom: 2rem;
+}
+
+.tool-hero__id { flex: 1 1 16rem; }
+
+.tool-hero__class {
+  margin: 0;
+  font-size: 0.74rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--coral);
+}
+
+.tool-hero__name {
+  margin: 0.3rem 0 0;
+  font-size: clamp(2rem, 7vw, 3.2rem);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  color: #fff;
+}
+
+.tool-hero__tagline {
+  margin: 0.6rem 0 0;
+  color: var(--silver);
+  font-size: clamp(0.9rem, 2.4vw, 1.05rem);
+  max-width: 48ch;
+}
+
+/* ───────────────────────────── figures strip ────────────────────────── */
+
+.tool-figures {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1px;
+  background: var(--line);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.figure {
+  flex: 1 1 7rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.85rem 1.1rem;
+  background: var(--panel);
+}
+
+.figure__v {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1.1;
+}
+.figure--live .figure__v { color: var(--pumpkin); }
+
+.figure__k {
+  font-size: 0.66rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--faint);
+  min-height: 1em;
+}
+
+/* ──────────────────────────────── install ───────────────────────────── */
+
+/* One strip, not a panel with pills floating beside it: the command and the
+   places it comes from are the same thought, and the figures row above is
+   already built as a row of divided cells. This matches it. */
+.tool-get {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  margin: 1.6rem 0 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.32);
+  overflow: hidden;
+}
+
+/* The panel moved out to .tool-get, so the command keeps only its text.
+   Written as pre.tool-get__cmd on purpose: the base rule is `pre.cmd`, which
+   outweighs a lone class, so a plain .tool-get__cmd lost every one of these
+   and the strip kept an inner border and a 1.4rem margin under the text. */
+pre.tool-get__cmd {
+  flex: 1 1 20rem;
+  margin: 0;
+  padding: 0.95rem 1.1rem;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  font-size: 0.92rem;
+}
+
+.tool-get__links { display: flex; flex-wrap: wrap; }
+
+/* Cells of the install strip rather than free-floating chips: only a hairline
+   on the left separates them, the way the figures row divides its own. */
+.tool-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  padding: 0.95rem 1.1rem;
+  border-left: 1px solid var(--line);
+  background: none;
+  font-size: 0.82rem;
+  letter-spacing: 0.02em;
+  color: var(--text);
+  transition: color 0.18s ease, background 0.18s ease;
+}
+
+.tool-link::after {
+  content: '↗';
+  font-size: 0.8em;
+  color: var(--faint);
+  transition: color 0.18s ease, transform 0.18s ease;
+}
+
+.tool-link:hover,
+.tool-link:focus-visible {
+  color: var(--pumpkin);
+  background: rgba(248, 101, 70, 0.08);
+}
+.tool-link:hover::after,
+.tool-link:focus-visible::after {
+  color: var(--pumpkin);
+  transform: translate(1px, -1px);
+}
+
+/* ──────────────────────────────── body ──────────────────────────────── */
+
+/* One column, but not one width: the prose keeps a readable measure while the
+   feature grid below is free to use the whole full-bleed column. */
+/* The prose keeps its measure and the demo takes the room left over beside
+   it. This is not the old sidebar: what sits here is one picture, not a list
+   that outran the text it was meant to accompany. */
+.tool-main {
+  display: grid;
+  grid-template-columns: minmax(0, 62ch) minmax(0, 1fr);
+  align-items: start;
+  gap: clamp(1.5rem, 4vw, 3rem);
+  margin-top: clamp(2rem, 6vw, 3.5rem);
+}
+
+.tool-demo {
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--panel);
+  line-height: 0;
+}
+.tool-demo img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+@media (max-width: 900px) {
+  .tool-main { grid-template-columns: minmax(0, 1fr); }
+  .tool-demo { max-width: 40rem; }
+}
+
+.tool-about {
+  border-top: 0;
+  padding-top: 0;
+  max-width: 62ch;
+}
+.tool-about__lede {
+  font-size: 1.02rem;
+  line-height: 1.75;
+  color: var(--text);
+}
+
+.tool-feats { margin-top: clamp(2.5rem, 7vw, 4rem); }
+
+.tool-feats__head {
+  margin: 0 0 1.3rem;
+  font-size: 0.7rem;
+  font-weight: 400;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #fff;
+  text-shadow: 0 0 2px var(--bg), 0 0 4px var(--bg), 0 0 8px var(--bg),
+               0 0 14px var(--bg), 0 0 22px var(--bg);
+}
+
+/* A grid rather than the old sidebar list. koi ships eight of these, and
+   stacked in a third of the width they ran well past the end of the prose
+   they were meant to sit beside. */
+.feats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: 1.5rem 2rem;
+}
+
+.feat {
+  border-top: 1px solid var(--line);
+  padding-top: 0.85rem;
+}
+.feat__k {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-size: 0.88rem;
+  color: var(--text);
+  text-shadow: var(--halo);
+}
+.feat__v {
+  display: block;
+  font-size: 0.85rem;
+  line-height: 1.65;
+  color: var(--dim);
+  text-shadow: var(--halo);
+}
+
+@media (max-width: 560px) {
+  .tool-grid { grid-template-columns: 1fr 1fr; gap: 0.7rem; }
+  .tool-card { padding: 1.1rem 0.7rem 1rem; }
+  .tool-card__name { font-size: 1rem; }
+  .tool-card__tagline { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tool-card, .tool-card__sigil, .tool-card::after { transition: none; }
+  .tool-link, .tool-link::after { transition: none; }
+  .tool-card:hover, .tool-card:focus-visible { transform: none; }
+  .tool-card:hover .tool-card__sigil { transform: none; }
+}
+
+/* ──────────────────────── tool page transition ──────────────────────── */
+
+/* Transform and opacity on a single element: the compositor handles both, so
+   nothing here touches the main thread while the backdrop keeps drawing. */
+@keyframes tool-enter {
+  from { opacity: 0; transform: translateY(16px) scale(0.985); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes grid-enter {
+  from { opacity: 0; transform: translateY(-10px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.tool-page.is-entering  { animation: tool-enter 0.34s cubic-bezier(0.2, 0, 0.1, 1); }
+#tool-index.is-entering { animation: grid-enter 0.26s ease-out; }
+
+@media (prefers-reduced-motion: reduce) {
+  .tool-page.is-entering,
+  #tool-index.is-entering { animation: none; }
+}

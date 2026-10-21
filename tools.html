@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>tools — b3rt1ng</title>
+<meta name="description" content="Offensive security tooling built by b3rt1ng.">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body data-scene="wake">
+
+<canvas id="c" aria-hidden="true"></canvas>
+
+<main>
+  <section id="tools" class="section section--page">
+
+    <div id="tool-index">
+      <div id="tool-grid" class="tool-grid"></div>
+    </div>
+
+    <article id="tool-doc" class="tool-page" hidden>
+      <header class="tool-hero">
+        <div class="tool-hero__id">
+          <p id="tool-doc-class" class="tool-hero__class"></p>
+          <h2 id="tool-doc-name" class="tool-hero__name"></h2>
+          <p id="tool-doc-tagline" class="tool-hero__tagline"></p>
+        </div>
+      </header>
+
+      <div id="tool-figures" class="tool-figures"></div>
+
+      <div class="tool-get">
+        <pre class="cmd tool-get__cmd"><code id="tool-doc-install"></code></pre>
+        <div id="tool-doc-links" class="tool-get__links"></div>
+      </div>
+
+      <div class="tool-main">
+        <div id="tool-doc-body" class="md tool-about"></div>
+        <figure id="tool-demo" class="tool-demo" hidden>
+          <!-- no-referrer is load-bearing: imgur, where these demos live, answers
+               403 to any request carrying a Referer from another site. -->
+          <img id="tool-demo-img" alt="" referrerpolicy="no-referrer" decoding="async">
+        </figure>
+      </div>
+
+      <section class="tool-feats">
+        <h2 class="tool-feats__head">features</h2>
+        <div id="tool-doc-rows" class="feats"></div>
+      </section>
+    </article>
+
+  </section>
+</main>
+
+<script src="js/koi.js"></script>
+<script src="js/wake.js"></script>
+<script src="js/sigil-art.js"></script>
+<script src="js/octopus.js"></script>
+<script src="js/data.js"></script>
+<script src="js/edge-back.js"></script>
+<script src="js/site.js"></script>
+<script src="js/tools.js"></script>
+</body>
+</html>
