@@ -119,8 +119,16 @@ function renderGrid() {
 
     const foot = el('span', 'tool-card__foot');
     if (t.status) foot.append(el('span', 'chip chip--on', t.status));
-    if (t.version) foot.append(el('span', 'chip', 'v' + t.version));
+    const pkg = pypiName(t);
+    const versionChip = t.version || pkg ? el('span', 'chip', t.version ? 'v' + t.version : 'v...') : null;
+    if (versionChip) foot.append(versionChip);
     card.append(foot);
+
+    if (pkg && versionChip) {
+      pkgVersion(pkg).then(v => {
+        versionChip.textContent = 'v' + v;
+      }).catch(() => {  });
+    }
 
     dom.grid.append(card);
   }
