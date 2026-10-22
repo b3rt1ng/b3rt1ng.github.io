@@ -222,6 +222,32 @@ pre.cmd code::before { content: '$ '; color: var(--pumpkin); }
 
 .edge-back--right { display: none; }
 
+.edge-back--left  { --dir: -1; }
+.edge-back--right { --dir: 1; }
+
+.edge-back.is-hint { animation: edge-hint 2.2s ease-in-out; }
+.edge-back.is-hint .edge-back__label { animation: edge-hint-swing 2.2s ease-in-out; }
+
+@keyframes edge-hint {
+  0%   { opacity: 0; }
+  16%  { opacity: 0.9; }
+  70%  { opacity: 0.9; }
+  100% { opacity: 0; }
+}
+
+@keyframes edge-hint-swing {
+  0%, 100% { transform: translateX(0); }
+  24%      { transform: translateX(calc(var(--dir) * 10px)); }
+  44%      { transform: translateX(calc(var(--dir) * -4px)); }
+  64%      { transform: translateX(calc(var(--dir) * 8px)); }
+  84%      { transform: translateX(calc(var(--dir) * -2px)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .edge-back.is-hint,
+  .edge-back.is-hint .edge-back__label { animation: none; }
+}
+
 .edge-back.is-edge {
   top: 0;
   bottom: 0;
@@ -567,8 +593,8 @@ pre.cmd code::before { content: '$ '; color: var(--pumpkin); }
   align-items: center;
   text-align: center;
 
-  gap: 0.85rem;
-  padding: 1.9rem 1.3rem 1.6rem;
+  gap: 1.5rem;
+  padding: 2.8rem 1.3rem 2.6rem;
   border: 1px solid var(--line);
   border-radius: 10px;
   background: var(--panel);
@@ -601,42 +627,54 @@ pre.cmd code::before { content: '$ '; color: var(--pumpkin); }
 .tool-card__sigil {
   display: grid;
   place-items: center;
-  height: 6.1rem;
-  margin: 0 0 0.3rem;
+  height: 10.4rem;
+  margin: 0 0 0.9rem;
   font-size: 1.45rem;
   line-height: 1;
   letter-spacing: 0.04em;
   color: var(--silver);
+  /* Composed from two variables rather than written out: `transform` is a
+     single property, so a hover rule that sets it replaces the stretch
+     instead of adding to it, and the art collapses to its natural height. */
+  --stretch: 1;
+  --pop: 1;
+  transform: scale(var(--pop)) scaleY(var(--stretch));
   transition: color 0.18s ease, transform 0.18s ease;
 }
 
+/* Taller without being wider: scaling the font would do both, so the glyphs
+   are stretched on the Y axis alone. line-height cannot do this either, since
+   it would open gaps between the braille rows and break the picture up. */
 .tool-card__sigil--art {
-  font-size: 0.64rem;
+  font-size: 0.82rem;
   letter-spacing: 0;
+  --stretch: 1.38;
 }
 .tool-card:hover .tool-card__sigil {
   color: var(--pumpkin);
-  transform: scale(1.06);
+  --pop: 1.06;
 }
 
 .tool-card__class {
-  font-size: 0.72rem;
-  letter-spacing: 0.16em;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--coral);
 }
 
 .tool-card__name {
   margin: 0;
-  font-size: 1.35rem;
+  font-size: 2rem;
+  line-height: 1.25;
   font-weight: 700;
   color: #fff;
 }
 
 .tool-card__tagline {
   margin: 0;
-  font-size: 0.88rem;
-  line-height: 1.65;
+  font-size: 1.08rem;
+  line-height: 1.75;
   color: var(--dim);
 }
 
@@ -648,9 +686,11 @@ pre.cmd code::before { content: '$ '; color: var(--pumpkin); }
   margin-top: 0.45rem;
 }
 
+/* Sized against the longest pair, not the first one that fit: koi's v0.12.0
+   is a character wider than octocrawl's v1.5.5 and was enough to wrap. */
 .tool-card__foot .chip {
   font-size: 0.78rem;
-  padding: 0.24rem 0.72rem;
+  padding: 0.28rem 0.68rem;
 }
 
 .tool-page {
@@ -860,15 +900,25 @@ pre.tool-get__cmd {
 @media (max-width: 560px) {
   .tool-grid { grid-template-columns: 1fr 1fr; gap: 0.7rem; }
   .tool-card { padding: 1.1rem 0.7rem 1rem; }
-  .tool-card__name { font-size: 1rem; }
+  .tool-card__name { font-size: 1.12rem; }
   .tool-card__tagline { display: none; }
+  /* The eyebrow is the widest line on a card; at the desktop size it would
+     not fit the ~168px a phone leaves inside one. */
+  .tool-card__class { font-size: 0.68rem; }
+  .tool-card__foot .chip { font-size: 0.66rem; padding: 0.24rem 0.56rem; }
+  /* Two cards on a phone leave about 168px inside one; the desktop art is
+     192px wide and would push the card out of its track. */
+  .tool-card__sigil { height: 8rem; }
+  /* A phone's card has only 1.1rem of padding above the art, less than the
+     half-growth a 1.38 stretch spills past the box, so it was being clipped. */
+  .tool-card__sigil--art { font-size: 0.62rem; --stretch: 1.2; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .tool-card, .tool-card__sigil, .tool-card::after { transition: none; }
   .tool-link, .tool-link::after { transition: none; }
   .tool-card:hover, .tool-card:focus-visible { transform: none; }
-  .tool-card:hover .tool-card__sigil { transform: none; }
+  .tool-card:hover .tool-card__sigil { --pop: 1; }
 }
 
 @keyframes tool-enter {

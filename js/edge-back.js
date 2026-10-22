@@ -4,8 +4,12 @@
 const ZONE = 170;
 const LIVE = 0.22;
 
+const HINT_WAIT = 650;
+const HINT_MS = 2200;
+
 let handler = null;
 let edgeMode = false;
+let hinted = false;
 const sides = [];
 
 function activate() {
@@ -40,6 +44,23 @@ function upgrade() {
   if (edgeMode) return;
   edgeMode = true;
   for (const el of sides) el.classList.add('is-edge');
+  setTimeout(hint, HINT_WAIT);
+}
+
+function hint() {
+  if (hinted || !edgeMode) return;
+  hinted = true;
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+  for (const el of sides) el.classList.add('is-hint', 'is-live');
+
+  setTimeout(() => {
+    for (const el of sides) {
+      el.classList.remove('is-hint');
+      const lit = parseFloat(el.style.getPropertyValue('--glow')) || 0;
+      if (lit < LIVE) el.classList.remove('is-live');
+    }
+  }, HINT_MS);
 }
 
 let queued = false;
