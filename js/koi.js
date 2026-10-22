@@ -227,7 +227,7 @@ const spTX = new Float64Array(SEG + 1), spTY = new Float64Array(SEG + 1);
 const finX = new Float64Array(FIN_SEG + 1), finY = new Float64Array(FIN_SEG + 1);
 const finNX = new Float64Array(FIN_SEG + 1), finNY = new Float64Array(FIN_SEG + 1);
 
-const SCALES = [1.0, 0.84, 0.70];
+const SCALES = [1.0, 0.84, 0.70, 0.90];
 
 const fishes = SCALES.map(scale => ({
   x: 0, y: 0,
@@ -252,17 +252,43 @@ const fishes = SCALES.map(scale => ({
 
 function resetFish() {
   const base = Math.max(55, Math.min(visW * 0.27, visH * 0.35));
-  fishes.forEach((f, i) => {
+  const placedFish = [];
+  const margin = base * 0.8;
+
+  fishes.forEach((f) => {
     f.L = base * f.scale;
     f.W = f.L * 0.135;
     f.finLen = f.L * 0.28;
     f.finSpan = f.L * 0.20;
 
-    const rightward = i % 2 === 0;
-    f.x = visW * (0.18 + 0.64 * ((i + 0.5) / fishes.length));
-    f.y = visH * (rightward ? 0.38 : 0.62);
+    let validPosition = false;
+    let attempts = 0;
+    
+    while (!validPosition && attempts < 50) {
+      attempts++;
+      
+      f.x = margin + Math.random() * Math.max(10, visW - margin * 2);
+      f.y = margin + Math.random() * Math.max(10, visH - margin * 2);
 
-    f.heading = (rightward ? 0 : Math.PI) + (Math.random() - 0.5) * 0.4;
+      validPosition = true;
+
+      for (const other of placedFish) {
+        const dx = f.x - other.x;
+        const dy = f.y - other.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        const minDistance = (f.L * 0.5) + (other.L * 0.5) + 40;
+
+        if (distance < minDistance) {
+          validPosition = false;
+          break;
+        }
+      }
+    }
+
+    placedFish.push({ x: f.x, y: f.y, L: f.L });
+
+    f.heading = Math.random() * Math.PI * 2;
     f.targetHeading = f.heading;
     f.amp = 1;
     f.speed = 0;
