@@ -1,9 +1,3 @@
-/* Reads the writeup repo straight from GitHub at page load, so pushing a new
-   markdown file is all it takes to publish one here.
-
-   Layout it expects:  <Platform>/<Challenge>/README[.<lang>].md
-   Anything else in the repo (assets, solver scripts, the root readme) is
-   ignored by the index but still reachable through the rendered links. */
 (() => {
 'use strict';
 
@@ -18,10 +12,10 @@ const LANGS = {
   it: 'Italiano', pt: 'Português', zh: '中文', ko: '한국어', ru: 'Русский',
   nl: 'Nederlands',
 };
-// The repo spells Japanese both ways; fold them together.
+
 const LANG_ALIAS = { jp: 'ja' };
 
-const TREE_TTL = 10 * 60 * 1000;   // the API allows 60 calls/hour per IP
+const TREE_TTL = 10 * 60 * 1000;
 
 const dom = {
   index:    document.getElementById('wu-index'),
@@ -35,7 +29,7 @@ const dom = {
   langs:    document.getElementById('wu-langs'),
 };
 
-let folders = new Map();   // "Platform/Challenge" -> entry
+let folders = new Map();
 
 function el(tag, cls, text) {
   const n = document.createElement(tag);
@@ -44,15 +38,12 @@ function el(tag, cls, text) {
   return n;
 }
 
-// sessionStorage is unavailable in some private modes; never let it break a read.
 function cacheGet(key) {
   try { return sessionStorage.getItem(key); } catch { return null; }
 }
 function cacheSet(key, value) {
-  try { sessionStorage.setItem(key, value); } catch { /* quota or blocked */ }
+  try { sessionStorage.setItem(key, value); } catch {  }
 }
-
-/* ----------------------------------------------------------- index model */
 
 function parseTree(tree) {
   const out = new Map();
@@ -61,7 +52,7 @@ function parseTree(tree) {
     if (item.type !== 'blob') continue;
 
     const parts = item.path.split('/');
-    if (parts.length < 2) continue;              // repo's own README, etc.
+    if (parts.length < 2) continue;
 
     const m = /^(.+?)(?:\.([A-Za-z]{2}))?\.md$/i.exec(parts[parts.length - 1]);
     if (!m) continue;
@@ -71,7 +62,7 @@ function parseTree(tree) {
     if (m[2]) {
       const code = m[2].toLowerCase();
       if (code in LANGS || code in LANG_ALIAS) lang = LANG_ALIAS[code] || code;
-      else base = `${m[1]}.${m[2]}`;             // ".v2" is a name, not a language
+      else base = `${m[1]}.${m[2]}`;
     }
 
     const folder = parts.slice(0, -1).join('/');
@@ -83,7 +74,7 @@ function parseTree(tree) {
     const entry = out.get(folder);
     const isReadme = /^readme$/i.test(base);
     const prev = entry.docs.get(lang);
-    // A README wins over any other markdown sitting beside it.
+
     if (!prev || (isReadme && !prev.isReadme)) {
       entry.docs.set(lang, { path: item.path, size: item.size || 0, isReadme });
     }
@@ -98,8 +89,6 @@ function pickLang(entry, wanted) {
   return entry.docs.keys().next().value;
 }
 
-/* ----------------------------------------------------------------- fetch */
-
 async function loadTree() {
   const key = `wu:tree:${owner}/${name}@${branch}`;
   const hit = cacheGet(key);
@@ -107,7 +96,7 @@ async function loadTree() {
     try {
       const { at, tree } = JSON.parse(hit);
       if (Date.now() - at < TREE_TTL) return tree;
-    } catch { /* corrupt entry, refetch */ }
+    } catch {  }
   }
 
   const res = await fetch(API, { headers: { Accept: 'application/vnd.github+json' } });
@@ -122,7 +111,7 @@ async function loadTree() {
   }
 
   const data = await res.json();
-  // Only the paths matter; drop the rest so the cache stays small.
+
   const tree = (data.tree || []).map(t => ({ path: t.path, type: t.type, size: t.size }));
   cacheSet(key, JSON.stringify({ at: Date.now(), tree }));
   if (data.truncated) console.warn('writeups: GitHub truncated the tree listing');
@@ -141,9 +130,6 @@ async function loadMarkdown(path) {
   return text;
 }
 
-/* --------------------------------------------------------------- the list */
-
-// Preferred platforms first, in the order given; everything else A→Z.
 function orderPlatforms(names) {
   const pref = WRITEUPS_REPO.order || [];
   const rank = n => {
@@ -197,9 +183,6 @@ function renderIndex() {
   dom.status.hidden = true;
 }
 
-/* ----------------------------------------------------------- the document */
-
-// Markdown in the repo links to files beside it; make those absolute.
 function resolveUrls(root, folder) {
   const rawBase  = RAW + folder + '/';
   const blobBase = BLOB + folder + '/';
@@ -272,21 +255,18 @@ async function showDoc(folder, wantedLang) {
     return;
   }
 
-  // Still the right document? The reader may have clicked away while fetching.
   if (routeOf(location.hash).folder !== folder) return;
 
   const html = marked.parse(md, { gfm: true });
   dom.body.innerHTML = DOMPurify.sanitize(html);
 
-  // The file usually opens with its own title, though a badge image often
-  // sits above it. Promote that heading instead of showing the folder name.
   const lead = [...dom.body.children].slice(0, 4).find(n => n.tagName === 'H1');
   if (lead) {
     const t = lead.textContent.trim();
     if (t) dom.title.textContent = t;
     lead.remove();
   }
-  // Leave exactly one h1 on the page: the title above.
+
   for (const extra of [...dom.body.querySelectorAll('h1')]) {
     const h2 = document.createElement('h2');
     h2.append(...extra.childNodes);
@@ -308,14 +288,11 @@ function showIndex() {
   dom.index.hidden = false;
 }
 
-/* --------------------------------------------------------------- routing */
-
 function routeOf(hash) {
   const raw = decodeURIComponent(hash.replace(/^#/, ''));
   if (!raw) return { folder: null, lang: null };
   if (folders.has(raw)) return { folder: raw, lang: null };
 
-  // Trailing segment may be a language: "Platform/Challenge/fr".
   const cut = raw.lastIndexOf('/');
   if (cut > 0) {
     const tail = raw.slice(cut + 1).toLowerCase();
@@ -332,8 +309,6 @@ function route() {
   else showIndex();
 }
 
-// The edge halo steps back one level at a time: an open writeup closes to the
-// list, and the list itself falls through to the landing page.
 if (window.EdgeBack) {
   window.EdgeBack.onBack(() => {
     if (!routeOf(location.hash).folder) return false;
@@ -342,8 +317,6 @@ if (window.EdgeBack) {
     return true;
   });
 }
-
-/* ------------------------------------------------------------------ boot */
 
 async function init() {
   if (typeof marked === 'undefined' || typeof DOMPurify === 'undefined') {
@@ -373,5 +346,4 @@ async function init() {
 }
 
 init();
-
 })();

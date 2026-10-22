@@ -1,8 +1,3 @@
-/* tools.html — a "choose your character" grid over TOOLS, with a detail view
-   on the same page so every tool keeps a shareable #slug URL.
-
-   Each tool's crest is generated from its slug rather than drawn by hand, so
-   adding an entry to data.js is all it takes to get a distinct one. */
 (() => {
 'use strict';
 
@@ -25,12 +20,10 @@ const dom = {
   demoImg: document.getElementById('tool-demo-img'),
 };
 
-// A stale cached data.js leaves TOOLS undefined; say so instead of throwing
-// into the void and leaving an empty page behind.
 if (typeof TOOLS === 'undefined') {
   const box = document.getElementById('tool-grid');
   if (box) {
-    box.textContent = 'Tool data failed to load — js/data.js may be a stale cached copy.';
+    box.textContent = 'Tool data failed to load. js/data.js may be a stale cached copy.';
     box.className = 'wu-error';
   }
   return;
@@ -44,8 +37,6 @@ function el(tag, cls, text) {
   if (text != null) n.textContent = text;
   return n;
 }
-
-/* ----------------------------------------------------------------- crest */
 
 function hashStr(s) {
   let h = 2166136261;
@@ -62,20 +53,16 @@ function mulberry32(a) {
   };
 }
 
-// A tool may ship real art instead of a generated crest. Kept out of data.js
-// because it is baked output, not something to edit by hand.
 const SIGIL_ART = {
   octopus: typeof OCTO_SIGIL === 'undefined' ? null : OCTO_SIGIL,
   koi:     typeof KOI_SIGIL === 'undefined' ? null : KOI_SIGIL,
 };
 
-// Blocks of 2x2 dots, mirrored down the middle: symmetry is what makes a
-// random pattern read as a crest rather than as noise.
 function sigil(slug) {
   const rnd = mulberry32(hashStr(slug));
   const BW = 2, BH = 6;
-  const W = BW * 2 * 2;           // 8 dot columns once mirrored
-  const H = BH * 2;               // 12 dot rows
+  const W = BW * 2 * 2;
+  const H = BH * 2;
   const on = new Uint8Array(W * H);
 
   for (let by = 0; by < BH; by++) {
@@ -106,8 +93,6 @@ function sigil(slug) {
   }
   return out;
 }
-
-/* ------------------------------------------------------------------ grid */
 
 function renderGrid() {
   dom.grid.textContent = '';
@@ -141,12 +126,10 @@ function renderGrid() {
   }
 }
 
-/* ------------------------------------------------------------ live facts */
-
 const GH_TTL = 15 * 60 * 1000;
 
 function cacheGet(k) { try { return sessionStorage.getItem(k); } catch { return null; } }
-function cacheSet(k, v) { try { sessionStorage.setItem(k, v); } catch { /* blocked */ } }
+function cacheSet(k, v) { try { sessionStorage.setItem(k, v); } catch {  } }
 
 async function repoStats(repo) {
   const key = 'gh:' + repo;
@@ -155,7 +138,7 @@ async function repoStats(repo) {
     try {
       const { at, data } = JSON.parse(hit);
       if (Date.now() - at < GH_TTL) return data;
-    } catch { /* corrupt, refetch */ }
+    } catch {  }
   }
 
   const res = await fetch(`https://api.github.com/repos/${repo}`, {
@@ -174,8 +157,6 @@ async function repoStats(repo) {
   return data;
 }
 
-// The package name is taken from the tool's own pypi link rather than stored
-// a second time, so the two can never disagree.
 function pypiName(t) {
   const hit = (t.links || []).find(([label]) => label === 'pypi');
   if (!hit) return null;
@@ -190,7 +171,7 @@ async function pkgVersion(name) {
     try {
       const { at, data } = JSON.parse(hit);
       if (Date.now() - at < GH_TTL) return data;
-    } catch { /* corrupt, refetch */ }
+    } catch {  }
   }
 
   const res = await fetch(`https://pypi.org/pypi/${encodeURIComponent(name)}/json`);
@@ -200,9 +181,6 @@ async function pkgVersion(name) {
   return data;
 }
 
-/* The demo still shown in the repo's README, so changing it there changes it
-   here. The README's own name is asked for rather than guessed: both of these
-   repos spell it README.MD, and a hardcoded README.md 404s in silence. */
 async function readmeImage(repo) {
   const key = 'demo:' + repo;
   const hit = cacheGet(key);
@@ -210,7 +188,7 @@ async function readmeImage(repo) {
     try {
       const { at, data } = JSON.parse(hit);
       if (Date.now() - at < GH_TTL) return data;
-    } catch { /* corrupt, refetch */ }
+    } catch {  }
   }
 
   const res = await fetch(`https://api.github.com/repos/${repo}/readme`, {
@@ -221,16 +199,12 @@ async function readmeImage(repo) {
 
   let md = '';
   if (j.encoding === 'base64' && j.content) {
-    // atob yields bytes, not characters; decode them as UTF-8 or any accented
-    // line in the README comes back mangled.
     const bytes = Uint8Array.from(atob(j.content.replace(/\s/g, '')), c => c.charCodeAt(0));
     md = new TextDecoder().decode(bytes);
   } else if (j.download_url) {
-    md = await (await fetch(j.download_url)).text();   // >1MB: content comes back empty
+    md = await (await fetch(j.download_url)).text();
   }
 
-  // The first <img> in the file. koi's README has three — the demo, then two
-  // asciinema badges — and the demo leads, as it does in octocrawl's.
   const m = /<img\b[^>]*\bsrc\s*=\s*["']([^"']+)["']/i.exec(md);
   let data = null;
   if (m) {
@@ -238,7 +212,6 @@ async function readmeImage(repo) {
     if (/^https?:\/\//i.test(raw)) {
       data = raw;
     } else if (j.download_url) {
-      // A path relative to the README resolves against the repo, not the site.
       data = new URL(raw, j.download_url).href;
     }
   }
@@ -254,42 +227,34 @@ function figure(value, label, cls) {
   return box;
 }
 
-// Static facts first so the strip never looks empty, then the live ones drop
-// in once GitHub answers. A failed call leaves a dash rather than a gap.
 function renderFigures(t) {
   const host = dom.figures;
   host.textContent = '';
 
   if (t.repo) host.append(figure('…', 'stars', 'figure--live'));
-  if (t.version) host.append(figure('v' + t.version, 'version', 'figure--version'));
-  for (const chip of t.stack || []) host.append(figure(chip, ''));
+  if (t.version) host.append(figure('v' + t.version, '', 'figure--version'));
 
-  // PyPI is the authority on what is actually released; data.js only supplies
-  // a value to show while the request is in flight, and to fall back on.
   const pkg = pypiName(t);
   if (pkg) {
     pkgVersion(pkg).then(v => {
       if (currentSlug !== t.slug) return;
       const cell = host.querySelector('.figure--version .figure__v');
       if (cell) cell.textContent = 'v' + v;
-    }).catch(() => { /* the static version stays */ });
+    }).catch(() => {  });
   }
 
   if (!t.repo) return;
 
   repoStats(t.repo).then(d => {
-    // Still on the same tool? The reader may have moved on mid-request.
     if (currentSlug !== t.slug) return;
     const live = host.querySelector('.figure--live .figure__v');
     if (live) live.textContent = String(d.stars);
   }).catch(() => {
     if (currentSlug !== t.slug) return;
     const live = host.querySelector('.figure--live .figure__v');
-    if (live) live.textContent = '—';
+    if (live) live.textContent = 'n/a';
   });
 }
-
-/* ---------------------------------------------------------------- detail */
 
 function renderBlock(b) {
   if (typeof b === 'string') return el('p', null, b);
@@ -327,8 +292,6 @@ function showTool(slug) {
     return;
   }
 
-  // No crest up here: the name is the identity on this page, and the art is
-  // left to the cards where it does the work of telling them apart.
   dom.klass.textContent = t.klass;
   dom.name.textContent = t.name;
   dom.tagline.textContent = t.tagline;
@@ -353,11 +316,11 @@ function showTool(slug) {
     readmeImage(t.repo).then(src => {
       if (!src || currentSlug !== t.slug) return;
       dom.demoImg.alt = t.name + ' demo';
-      // Belt and braces with the markup attribute: without it imgur 403s.
+
       dom.demoImg.referrerPolicy = 'no-referrer';
       dom.demoImg.src = src;
       dom.demo.hidden = false;
-    }).catch(() => { /* no demo, the prose simply runs full width */ });
+    }).catch(() => {  });
   }
 
   dom.rows.textContent = '';
@@ -380,11 +343,6 @@ function showGrid() {
   play(dom.index);
 }
 
-/* --------------------------------------------------------------- routing */
-
-// A tool may ask for its own backdrop. Anything else — the grid included —
-// falls back to whatever this page declared, so the creatures stay on the two
-// pages that are about them.
 function applyScene(slug) {
   const BG = window.BrailleBG;
   if (!BG) return;
@@ -392,7 +350,7 @@ function applyScene(slug) {
   const page = document.body.dataset.scene;
   const next = BG.scenes[want] || BG.scenes[page] || BG.scenes.koi;
   if (BG.current && BG.current() === next) return;
-  // Opening a tool swaps the whole backdrop; dissolving is kinder than cutting.
+
   if (window.PageFade) window.PageFade.swap(() => BG.use(next));
   else BG.use(next);
 }
@@ -406,26 +364,18 @@ function route() {
 
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-// A plain CSS entrance on the panel, not a View Transition. The API morphs
-// beautifully, but it has to snapshot and composite the whole viewport — and
-// this page's backdrop is a full-screen canvas. Measured: 80-120ms frame gaps
-// on every click, nearly all of it inside the browser's own compositing, with
-// pausing the canvas and excluding it from the snapshot making no difference.
-// Animating one element's transform and opacity costs none of that.
 function play(el) {
   if (!el || REDUCED) return;
   el.classList.remove('is-entering');
-  void el.offsetWidth;            // restart the animation
+  void el.offsetWidth;
   el.classList.add('is-entering');
 
-  // Hold the backdrop still for the ~300ms the panel is moving. It is the
-  // heaviest thing on the page and the only one competing for the frame.
   const BG = window.BrailleBG;
   if (!BG || !BG.pause) return;
   BG.pause();
   const wake = () => { BG.resume(); el.removeEventListener('animationend', wake); };
   el.addEventListener('animationend', wake);
-  setTimeout(wake, 600);          // in case the animation never fires
+  setTimeout(wake, 600);
 }
 
 function open(slug) {
@@ -438,8 +388,6 @@ function toGrid() {
   route();
 }
 
-// The edge halo steps back one level at a time: an open tool closes to the
-// grid, and the grid itself falls through to the landing page.
 if (window.EdgeBack) {
   window.EdgeBack.onBack(() => {
     if (!currentSlug) return false;
@@ -452,5 +400,4 @@ renderGrid();
 route();
 window.addEventListener('hashchange', route);
 window.addEventListener('popstate', route);
-
 })();

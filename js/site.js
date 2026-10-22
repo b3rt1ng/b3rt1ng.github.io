@@ -1,7 +1,3 @@
-/* Shared across index.html, blog.html and writeups.html. Every renderer bails
-   out when its container is absent, so each page only runs what it needs.
-   Nodes are built with textContent rather than HTML strings, so post titles
-   and code can contain < & " safely. */
 (() => {
 'use strict';
 
@@ -20,15 +16,6 @@ function extLink(label, href) {
   return a;
 }
 
-function formatDate(iso) {
-  const d = new Date(iso + 'T00:00:00');
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-}
-
-/* ------------------------------------------------------------------ hero */
-
-// Trusted constants, never built from data — safe to drop in as markup.
 const ICONS = {
   tools: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14.4 6.4a3.6 3.6 0 0 0 4.7 4.7l2.1 2.1a2 2 0 0 1-2.8 2.8l-2.1-2.1a3.6 3.6 0 0 1-4.7-4.7z"/><path d="M11.6 11.2 4.3 18.5a1.9 1.9 0 0 0 2.7 2.7l7.3-7.3"/><path d="M14.4 6.4 17 3.8l3.2 3.2-2.6 2.6"/></svg>',
   writeups: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6.8 2.8h6.6L18 7.4v13.8H6.8z"/><path d="M13.2 2.8v4.8H18"/><path d="M9.8 12.2h5M9.8 15.2h5M9.8 18.2h3"/></svg>',
@@ -39,11 +26,9 @@ const ICONS = {
 
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-const ROLE_HOLD = 3400;   // ms a role sits still
-const ROLE_SLIDE = 420;   // ms of travel, matches the CSS transition
+const ROLE_HOLD = 3400;
+const ROLE_SLIDE = 420;
 
-// One role at a time: the current one drifts right and fades out, the next
-// fades in arriving from the left.
 function cycleRoles(host, roles) {
   let i = 0;
   host.textContent = roles[0];
@@ -55,9 +40,7 @@ function cycleRoles(host, roles) {
     setTimeout(() => {
       i = (i + 1) % roles.length;
       host.textContent = roles[i];
-      // Jump to the entry position with the transition switched off, then
-      // release it so the next frame animates the arrival instead of
-      // sliding the old text backwards.
+
       host.classList.add('is-skip', 'is-in');
       host.classList.remove('is-out');
       void host.offsetWidth;
@@ -66,13 +49,9 @@ function cycleRoles(host, roles) {
   }, ROLE_HOLD + ROLE_SLIDE);
 }
 
-// Fallback, also used when the viewer asked for less motion: all the roles
-// at once, breaking only at the separators.
 function staticRoles(host, roles) {
   host.textContent = '';
   roles.forEach((p, i) => {
-    // Real spaces around the separator: adjacent spans with no whitespace
-    // between them give the line no break opportunity at all.
     if (i) host.append(' ', el('span', 'role__sep', '·'), ' ');
     host.append(el('span', roles.length > 1 ? 'role__part' : null, p));
   });
@@ -92,7 +71,7 @@ function renderHero() {
   const hint = document.getElementById('icon-hint');
   const row = (typeof SITE_LINKS === 'undefined' ? [] : SITE_LINKS).concat(SOCIALS);
   for (const s of row) {
-    if (typeof s.url !== 'string' || !s.url.trim()) continue;   // not set yet
+    if (typeof s.url !== 'string' || !s.url.trim()) continue;
     const icon = ICONS[s.icon];
     if (!icon) continue;
 
@@ -106,8 +85,6 @@ function renderHero() {
     a.innerHTML = icon;
 
     if (hint) {
-      // Pointer and keyboard both drive it, so tabbing announces the same
-      // destination a hover would.
       const show = () => {
         hint.textContent = '';
         hint.append(el('span', 'icon-hint__name', s.name));
@@ -126,134 +103,6 @@ function renderHero() {
   }
 }
 
-/* -------------------------------------------------------------- projects */
-
-function renderProjects() {
-  const host = document.getElementById('projects-list');
-  if (!host) return;
-
-  for (const p of PROJECTS) {
-    const card = el('article', 'card');
-    card.append(el('span', 'card__label', p.name));
-
-    if (p.tagline) card.append(el('p', 'card__tagline', p.tagline));
-
-    const meta = el('div', 'card__meta');
-    if (p.status) meta.append(el('span', 'chip chip--on', p.status));
-    if (p.version) meta.append(el('span', 'chip', 'v' + p.version));
-    for (const s of p.stack || []) meta.append(el('span', 'chip', s));
-    if (meta.childElementCount) card.append(meta);
-
-    if (p.summary) card.append(el('p', 'card__summary', p.summary));
-
-    if (p.highlights && p.highlights.length) {
-      const rows = el('div', 'rows');
-      for (const [k, v] of p.highlights) {
-        const row = el('div', 'row');
-        row.append(el('span', 'row__k', k), el('span', 'row__v', v));
-        rows.append(row);
-      }
-      card.append(rows);
-    }
-
-    if (p.install) {
-      const pre = el('pre', 'cmd');
-      pre.append(el('code', null, p.install));
-      card.append(pre);
-    }
-
-    if (p.links && p.links.length) {
-      const links = el('div', 'card__links');
-      for (const [label, href] of p.links) links.append(extLink(label, href));
-      card.append(links);
-    }
-
-    host.append(card);
-  }
-}
-
-/* ------------------------------------------------------------------ blog */
-
-function renderBlock(b) {
-  if (typeof b === 'string') return el('p', null, b);
-  if (b.h) return el('h4', null, b.h);
-  if (b.list) {
-    const ul = el('ul');
-    for (const item of b.list) ul.append(el('li', null, item));
-    return ul;
-  }
-  if (b.code) {
-    const pre = el('pre');
-    pre.append(el('code', b.lang ? 'lang-' + b.lang : null, b.code));
-    return pre;
-  }
-  return el('p', null, String(b));
-}
-
-function buildPost(post) {
-  const art = el('article', 'post');
-  art.id = post.slug;
-
-  const head = el('button', 'post__head');
-  head.type = 'button';
-  head.setAttribute('aria-expanded', 'false');
-  head.append(el('span', 'post__marker', '▸'), el('h3', 'post__title', post.title));
-
-  const sub = el('div', 'post__sub');
-  if (post.date) {
-    const t = el('time', null, formatDate(post.date));
-    t.dateTime = post.date;
-    sub.append(t);
-  }
-  for (const tag of post.tags || []) sub.append(el('span', 'post__tag', tag));
-  if (sub.childElementCount) head.append(sub);
-
-  if (post.excerpt) head.append(el('p', 'post__excerpt', post.excerpt));
-
-  const body = el('div', 'post__body');
-  body.id = post.slug + '--body';
-  for (const block of post.body || []) body.append(renderBlock(block));
-  head.setAttribute('aria-controls', body.id);
-
-  head.addEventListener('click', () => {
-    const open = art.classList.toggle('is-open');
-    head.setAttribute('aria-expanded', String(open));
-    // Make the open post linkable without jumping the scroll position.
-    history.replaceState(null, '', open ? '#' + post.slug : location.pathname + location.search);
-  });
-
-  art.append(head, body);
-  return art;
-}
-
-function renderPosts() {
-  const host = document.getElementById('posts-list');
-  if (!host) return;
-
-  if (!POSTS.length) {
-    host.append(el('p', 'empty', 'Nothing published yet. Check back later.'));
-    return;
-  }
-  for (const post of POSTS) host.append(buildPost(post));
-}
-
-// A bare #slug in the URL opens that post on load.
-function openFromHash() {
-  const slug = decodeURIComponent(location.hash.slice(1));
-  if (!slug) return;
-  const art = document.getElementById(slug);
-  if (!art || !art.classList.contains('post')) return;
-  art.classList.add('is-open');
-  art.querySelector('.post__head').setAttribute('aria-expanded', 'true');
-  art.scrollIntoView({ block: 'start' });
-}
-
-/* ------------------------------------------------------------- page fade */
-
-/* The backdrop fades in on arrival and back out before leaving, so moving
-   between pages is a dissolve rather than a cut. Outgoing has to be done by
-   intercepting the click: by the time unload fires there is nothing left to
-   animate. */
 const bgCanvas = document.getElementById('c');
 
 function bgIn() {
@@ -266,14 +115,13 @@ function bgOut(then) {
   let fired = false;
   const go = () => { if (!fired) { fired = true; then(); } };
   bgCanvas.addEventListener('transitionend', go, { once: true });
-  // A transition that never runs (reduced motion, a hidden tab) must not
-  // strand the navigation.
+
   setTimeout(go, 500);
 }
 
 window.PageFade = {
   out: bgOut,
-  // Dip the backdrop, change what it draws, bring it back.
+
   swap(change) {
     bgOut(() => { change(); bgIn(); });
   },
@@ -287,35 +135,23 @@ document.addEventListener('click', ev => {
 
   const url = new URL(a.href, location.href);
   if (url.origin !== location.origin) return;
-  // Same document: that is in-page routing, which has its own transition.
+
   if (url.pathname === location.pathname) return;
 
   ev.preventDefault();
   bgOut(() => { location.href = a.href; });
 });
 
-/* ------------------------------------------------------------------ boot */
-
-/* Each page names its backdrop on <body>. Applied here rather than in koi.js
-   because the scenes register themselves from their own scripts, and this one
-   runs after all of them. A page that names nothing keeps the default. */
 function applyPageScene() {
   const BG = window.BrailleBG;
   if (!BG) return;
   const want = document.body.dataset.scene;
-  // koi.js now idles rather than starting on its own scene, so a page whose
-  // backdrop script failed to load would sit on an empty canvas forever. Fall
-  // back to the one scene that is always there.
+
   BG.use(BG.scenes[want] || BG.scenes.koi);
 }
 
 applyPageScene();
-// Only now is the backdrop showing what this page asked for; fading in any
-// earlier shows whatever the renderer happened to start on.
+
 bgIn();
 renderHero();
-renderProjects();
-renderPosts();
-openFromHash();
-
 })();

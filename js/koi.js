@@ -17,9 +17,6 @@ let DPR = 1;
 
 const POND = '#1e1e1e';
 
-// Cell boundaries land on fractional pixels (CHAR_W is not an integer), and a
-// fractional fillRect edge only partially covers its boundary pixel. That
-// leaves a 1px seam that never clears, so snap the rect outwards.
 function eraseRect(x, y, w, h) {
   const x0 = Math.floor(x), y0 = Math.floor(y);
   const x1 = Math.ceil(x + w), y1 = Math.ceil(y + h);
@@ -28,8 +25,6 @@ function eraseRect(x, y, w, h) {
 }
 let bufR, bufG, bufB, bufA;
 let visW, visH;
-
-// ---------------------------------------------------------------- buffers
 
 function setDot(x, y, r, g, b, a) {
   if (x < 0 || x >= dotW || y < 0 || y >= dotH) return;
@@ -45,9 +40,6 @@ function touch(x, y) {
   if (y < bbY0) bbY0 = y;
   if (y > bbY1) bbY1 = y;
 }
-
-// ------------------------------------------------------- triangle raster
-// Barycentric fill, interpolating two attributes (s along body, v across).
 
 function tri(x0,y0,s0,v0, x1,y1,s1,v1, x2,y2,s2,v2, shade) {
   let minX = Math.floor(Math.min(x0,x1,x2)); if (minX < 0) minX = 0;
@@ -78,8 +70,6 @@ function quad(a, b, c, d, shade) {
   tri(a[0],a[1],a[2],a[3], c[0],c[1],c[2],c[3], d[0],d[1],d[2],d[3], shade);
 }
 
-// ------------------------------------------------------------------ rng
-
 function mulberry32(a) {
   return function() {
     a |= 0; a = (a + 0x6D2B79F5) | 0;
@@ -89,9 +79,6 @@ function mulberry32(a) {
   };
 }
 
-// ------------------------------------------------------------ koi body
-
-// Half-width profile: blunt snout, widest just behind the head, slim peduncle.
 const SHOULDER = 0.30;
 const PEDUNCLE = 0.085;
 function widthProfile(s) {
@@ -103,25 +90,18 @@ function widthProfile(s) {
   return Math.pow(1 - u, 0.62) * (1 - PEDUNCLE) + PEDUNCLE;
 }
 
-// Videler's carangiform amplitude envelope, normalised to body length.
 function envelope(s) { return 0.02 - 0.0825 * s + 0.1625 * s * s; }
 
-// ---------------------------------------------------- pattern (baked LUT)
-
 const PW = 256, PH = 72;
-let AR, AG, AB;        // albedo of whichever koi is currently being drawn
+let AR, AG, AB;
 let shadeLUT;
 
-// Palette lifted from the koi CLI (~/.koi/config.json).
 const C_WHITE   = [255, 255, 255];
 const C_SILVER  = [169, 169, 169];
 const C_PUMPKIN = [248, 101, 70];
 const C_CORAL   = [235, 111, 92];
 const C_UMBER   = [123, 62, 0];
 
-// Brown markings, built around the palette's umber. Umber on its own is dark
-// enough to sink into the pond once the body shading knocks it down, so the
-// patch itself runs lighter and keeps true umber for its edge.
 const BROWN_LO   = [132, 72, 18];
 const BROWN_HI   = [176, 103, 36];
 const BROWN_EDGE = C_UMBER;
@@ -129,7 +109,6 @@ const BROWN_EDGE = C_UMBER;
 function bakePattern(seed) {
   const rnd = mulberry32(seed);
 
-  // Kohaku-style stepped patches running down the back.
   const blobs = [];
   let s = 0.04 + rnd() * 0.10;
   while (s < 0.94) {
@@ -140,8 +119,7 @@ function bakePattern(seed) {
       rs: len * 0.5,
       rv: 0.70 + rnd() * 0.55,
       p1: rnd() * 6.283, p2: rnd() * 6.283, p3: rnd() * 6.283,
-      // Roughly a third of the markings come out brown instead of orange,
-      // rolled per patch so no two koi share a layout.
+
       brown: rnd() < 0.36,
     });
     s += len + 0.07 + rnd() * 0.15;
@@ -151,8 +129,6 @@ function bakePattern(seed) {
   const G = new Uint8Array(PW * PH);
   const B = new Uint8Array(PW * PH);
 
-  // Returns how strongly this point is covered, and by which patch — the
-  // winner decides whether the marking is orange or brown.
   let hitBlob = null;
   const coverage = (set, s, v, soft) => {
     let m = 0;
@@ -164,7 +140,7 @@ function bakePattern(seed) {
       const d = Math.sqrt(ds * ds + dv * dv);
       if (d > 2.2) continue;
       const ang = Math.atan2(dv, ds);
-      // Irregular, hand-drawn edge (kiwa) from a few harmonics.
+
       const th = 1 + 0.21 * Math.sin(3 * ang + b.p1)
                    + 0.13 * Math.sin(5 * ang + b.p2)
                    + 0.07 * Math.sin(9 * ang + b.p3);
@@ -180,8 +156,6 @@ function bakePattern(seed) {
       const sv = i / (PW - 1);
       const idx = j * PW + i;
 
-      // Tight edge: the patches should read as drawn shapes with a clear
-      // boundary, not as a wash fading into the white.
       const red = coverage(blobs, sv, v, 0.045);
 
       const brown = hitBlob && hitBlob.brown;
@@ -189,13 +163,11 @@ function bakePattern(seed) {
       const hi = brown ? BROWN_HI : C_PUMPKIN;
       const edge = brown ? BROWN_EDGE : C_UMBER;
 
-      // Drift between the two tones so a patch is not a flat fill.
       const warm = 0.5 + 0.5 * Math.sin(sv * 19 + v * 5.5);
       let r = lo[0] + (hi[0] - lo[0]) * warm;
       let g = lo[1] + (hi[1] - lo[1]) * warm;
       let b = lo[2] + (hi[2] - lo[2]) * warm;
 
-      // Darker banding where a patch meets white sharpens the kiwa edge.
       const rim = red * (1 - red) * 4;
       r += (edge[0] - r) * rim * 0.15;
       g += (edge[1] - g) * rim * 0.15;
@@ -212,17 +184,15 @@ function bakePattern(seed) {
   return { R, G, B };
 }
 
-// Lambert-ish cylinder shading + sheen, keyed on lateral position only. It
-// depends on the viewing angle alone, so every koi shares one table.
 function buildShadeLUT() {
   shadeLUT = new Float32Array(512);
   for (let i = 0; i < 512; i++) {
     const v = (i / 511) * 2 - 1;
     const round = Math.sqrt(Math.max(0, 1 - v * v));
     const spec = Math.exp(-((v + 0.34) * (v + 0.34)) / 0.018) * 0.30;
-    // Crisp rim: the last sliver of the silhouette drops off hard.
+
     const rim = Math.min(1, (1 - Math.abs(v)) / 0.07);
-    // Floor raised so the silhouette still reads against a grey pond.
+
     shadeLUT[i] = (0.60 + 0.40 * Math.pow(round, 0.5) + spec) * (0.78 + 0.22 * rim);
   }
 }
@@ -240,18 +210,12 @@ function albedoAt(s, v, out) {
   out[2] = AB[a]*w0 + AB[b]*w1 + AB[c]*w2 + AB[d]*w3;
 }
 
-// ------------------------------------------------------------------ fish
-
-// The head leaves a trail and the body is laid along it, so a turn bends the
-// koi instead of swinging it round like a stick. PATH_N samples at L/60 apart
-// cover a little over two body lengths — comfortably more than the 1.42 the
-// body plus caudal fin needs.
 const PATH_N = 128;
 const PATH_STEP = 1 / 60;
 
-const RAW = 180;       // dense samples of the raw wave curve
-const SEG = 60;        // body spine points after arc-length resampling
-const FIN_SEG = 20;    // caudal axis points
+const RAW = 180;
+const SEG = 60;
+const FIN_SEG = 20;
 
 const rawX = new Float64Array(RAW + 1);
 const rawY = new Float64Array(RAW + 1);
@@ -263,8 +227,6 @@ const spTX = new Float64Array(SEG + 1), spTY = new Float64Array(SEG + 1);
 const finX = new Float64Array(FIN_SEG + 1), finY = new Float64Array(FIN_SEG + 1);
 const finNX = new Float64Array(FIN_SEG + 1), finNY = new Float64Array(FIN_SEG + 1);
 
-// Relative body lengths. Each entry becomes one koi with its own markings,
-// size and tail cadence, so the two never fall into step with each other.
 const SCALES = [1.0, 0.84, 0.70];
 
 const fishes = SCALES.map(scale => ({
@@ -274,13 +236,13 @@ const fishes = SCALES.map(scale => ({
   turnRate: 0,
   roll: 0,
   phase: Math.random() * Math.PI * 2,
-  beat: 0.86 + Math.random() * 0.24,   // tail beats per second
-  amp: 1,                              // beat-and-glide amplitude envelope
+  beat: 0.86 + Math.random() * 0.24,
+  amp: 1,
   speed: 0,
   scale,
   L: 0, W: 0, finLen: 0, finSpan: 0,
-  px: new Float64Array(PATH_N),   // head trail, newest at pHead,
-  py: new Float64Array(PATH_N),   // walking back in time with ++index
+  px: new Float64Array(PATH_N),
+  py: new Float64Array(PATH_N),
   pHead: 0,
   glideTimer: 0,
   gliding: false,
@@ -295,13 +257,11 @@ function resetFish() {
     f.W = f.L * 0.135;
     f.finLen = f.L * 0.28;
     f.finSpan = f.L * 0.20;
-    // Spread evenly across the width and alternate between the upper and
-    // lower lane, so the scene never opens with koi stacked on each other.
-    // Same-lane neighbours face the same way, so they do not swim head-on.
+
     const rightward = i % 2 === 0;
     f.x = visW * (0.18 + 0.64 * ((i + 0.5) / fishes.length));
     f.y = visH * (rightward ? 0.38 : 0.62);
-    // Enter broadside so the first seconds already read as a crossing koi.
+
     f.heading = (rightward ? 0 : Math.PI) + (Math.random() - 0.5) * 0.4;
     f.targetHeading = f.heading;
     f.amp = 1;
@@ -316,7 +276,6 @@ function resetFish() {
 }
 
 function updateFish(f, dt) {
-  // --- beat and glide: bursts of tail beats, then coasting ---
   f.glideTimer -= dt;
   if (f.glideTimer <= 0) {
     f.gliding = !f.gliding;
@@ -326,15 +285,12 @@ function updateFish(f, dt) {
   const targetAmp = f.gliding ? 0.18 : 1.0;
   f.amp += (targetAmp - f.amp) * Math.min(1, dt * 0.9);
 
-  // --- heading: slow wander plus occasional deliberate turns ---
   f.wander -= dt;
   if (f.wander <= 0) {
     f.targetHeading += (Math.random() - 0.5) * 1.4;
     f.wander = 6 + Math.random() * 8;
   }
 
-  // Stay in frame. Steer on the body's midpoint rather than the snout, and
-  // repel continuously from each wall so turns start early and stay smooth.
   const bx = f.x - Math.cos(f.heading) * f.L * 0.5;
   const by = f.y - Math.sin(f.heading) * f.L * 0.5;
   const mx = f.L * 0.80, my = f.L * 1.00;
@@ -352,8 +308,6 @@ function updateFish(f, dt) {
     f.targetHeading += d * Math.min(1, dt * 2.0 * push);
   }
 
-  // Lean toward broadside travel: a koi crossing a wide canvas reads better
-  // than one swimming at the viewer, and it keeps turns inside the frame.
   const level = Math.cos(f.targetHeading) >= 0 ? 0 : Math.PI;
   let hb = level - f.targetHeading;
   while (hb >  Math.PI) hb -= Math.PI * 2;
@@ -363,22 +317,16 @@ function updateFish(f, dt) {
   let diff = f.targetHeading - f.heading;
   while (diff >  Math.PI) diff -= Math.PI * 2;
   while (diff < -Math.PI) diff += Math.PI * 2;
-  // A koi cannot pivot tighter than its own body. Cap the turn so the arc it
-  // traces stays wider than ~0.8 body lengths: any tighter and the trail
-  // curls up smaller than the body is long, and the spine folds back on
-  // itself. The floor lets a gliding fish still drift round slowly.
+
   let turn = diff * Math.min(1, dt * 0.95);
   const lim = Math.max(0.14, f.speed / (f.L * 0.8)) * dt;
   if (turn >  lim) turn =  lim;
   if (turn < -lim) turn = -lim;
   f.heading += turn;
 
-  // Body curls into the turn; the tail trails to the outside. The gain is
-  // raised to keep the curl visible now that turns are gentler.
   f.turnRate += (turn / Math.max(dt, 1e-4) - f.turnRate) * Math.min(1, dt * 2.2);
   f.roll += (-f.turnRate * 0.5 - f.roll) * Math.min(1, dt * 3);
 
-  // Thrust follows the tail beat; drag does the rest.
   const thrust = f.amp * f.amp * f.L * 0.20;
   f.speed += (thrust - f.speed) * Math.min(1, dt * 0.7);
 
@@ -386,7 +334,6 @@ function updateFish(f, dt) {
   f.x += Math.cos(f.heading) * f.speed * dt;
   f.y += Math.sin(f.heading) * f.speed * dt;
 
-  // Drop a breadcrumb once the head has pulled far enough from the last one.
   const stepSq = (f.L * PATH_STEP) * (f.L * PATH_STEP);
   const dx = f.x - f.px[f.pHead], dy = f.y - f.py[f.pHead];
   if (dx * dx + dy * dy >= stepSq) {
@@ -396,8 +343,6 @@ function updateFish(f, dt) {
   }
 }
 
-// Lay a straight trail behind the head so the buffer is never short; the real
-// path overwrites it within a couple of body lengths of swimming.
 function seedPath(f) {
   const cx = Math.cos(f.heading), cy = Math.sin(f.heading);
   const step = f.L * PATH_STEP;
@@ -409,19 +354,13 @@ function seedPath(f) {
   f.pHead = 0;
 }
 
-// Build the spine: sample the travelling wave densely, then resample by arc
-// length so the body keeps a constant length (fish bodies do not stretch).
 function buildSpine(f) {
   const L = f.L;
-  const k = Math.PI * 2 / 0.95;        // wavelength ~ 0.95 body lengths
+  const k = Math.PI * 2 / 0.95;
   const sMax = 1.42;
   const ampScale = 1.2 * f.amp;
 
-  // Centreline straight off the head's own track: walk the trail backwards,
-  // asking for steadily greater distances, and hang the travelling wave off
-  // it as a perpendicular offset. The body therefore lies where the head has
-  // actually been, so a turn curves it instead of rotating it rigidly.
-  let aX = f.x, aY = f.y, aD = 0;        // near end of the current trail span
+  let aX = f.x, aY = f.y, aD = 0;
   let bi = f.pHead;
   let bX = f.px[bi], bY = f.py[bi];
   let bD = Math.hypot(bX - aX, bY - aY);
@@ -443,11 +382,6 @@ function buildSpine(f) {
     const cx = aX + (bX - aX) * t;
     const cy = aY + (bY - aY) * t;
 
-    // Tangent points forward along the trail, so the normal sign is stable.
-    // The span can be exactly zero on the frame a breadcrumb is dropped, when
-    // the head still sits on top of it; the heading is the right direction to
-    // fall back on, and without it the normal collapses and the wave offset
-    // vanishes for that one sample, kinking the nose.
     let tx = aX - bX, ty = aY - bY;
     let tl = Math.hypot(tx, ty);
     if (tl < 1e-6) { tx = Math.cos(f.heading); ty = Math.sin(f.heading); tl = 1; }
@@ -464,7 +398,6 @@ function buildSpine(f) {
     rawL[i] = rawL[i-1] + Math.sqrt(dx * dx + dy * dy);
   }
 
-  // The wave adds length, so resample to pin the body back to exactly L.
   const ax = 1 / DOT_ASPECT;
   let cursor = 0;
 
@@ -479,7 +412,6 @@ function buildSpine(f) {
   for (let i = 0; i <= SEG; i++) place(L * i / SEG, spX, spY, i);
   for (let j = 0; j <= FIN_SEG; j++) place(L + f.finLen * j / FIN_SEG, finX, finY, j);
 
-  // Visual space -> dot space happens here, once.
   for (let i = 0; i <= SEG; i++) spX[i] *= ax;
   for (let j = 0; j <= FIN_SEG; j++) finX[j] *= ax;
 
@@ -491,7 +423,7 @@ function frames(px, py, tx, ty, nx, ny, n) {
   for (let i = 0; i <= n; i++) {
     const a = i > 0 ? i - 1 : 0;
     const b = i < n ? i + 1 : n;
-    let dx = (px[b] - px[a]) * DOT_ASPECT;   // measure in isotropic space
+    let dx = (px[b] - px[a]) * DOT_ASPECT;
     let dy = py[b] - py[a];
     const len = Math.sqrt(dx * dx + dy * dy) || 1;
     dx /= len; dy /= len;
@@ -500,36 +432,24 @@ function frames(px, py, tx, ty, nx, ny, n) {
   }
 }
 
-// ---------------------------------------------------------------- shading
-
 const rgb = [0, 0, 0];
 
-// Halftone, not a fill. Coverage follows luminance, so the pale flanks stay
-// dense while the orange and brown markings thin out — the colours end up
-// separated by dot density as much as by hue, which is what makes the shapes
-// read as distinct regions instead of one solid Braille block.
-const DOT_FLOOR = 22;   // keeps the silhouette continuous in the dark areas
+const DOT_FLOOR = 22;
 const DOT_RANGE = 162;
 
 function shadeBody(x, y, s, v) {
   albedoAt(s, v, rgb);
   let li = ((v * 0.5 + 0.5) * 511) | 0;
   if (li < 0) li = 0; else if (li > 511) li = 511;
-  // Fade very slightly toward the tail for depth.
+
   const k = shadeLUT[li] * (1 - 0.10 * s);
 
-  // Sparse dots lose their colour fast, so the ink keeps more of its punch
-  // than the shading alone would give it; the shading rides on coverage.
   const kc = Math.sqrt(k);
   let r = rgb[0] * kc, g = rgb[1] * kc, b = rgb[2] * kc;
   if (r > 255) r = 255;
   if (g > 255) g = 255;
   if (b > 255) b = 255;
 
-  // Coverage tracks the body shading only, never the hue: keying it on
-  // luminance drains the orange and brown patches of dots and they stop
-  // reading as regions at all. Every colour gets the same density, so the
-  // boundaries come from hue against a uniform stipple.
   setDot(x, y, r, g, b, DOT_FLOOR + k * DOT_RANGE);
   touch(x, y);
 }
@@ -537,10 +457,10 @@ function shadeBody(x, y, s, v) {
 function makeFinShader(sBase, sSpan, rayCount, baseAlpha, tint, pale) {
   return (x, y, u, a) => {
     albedoAt(sBase + sSpan * u, a * 0.85, rgb);
-    // Fin rays read as fine bright lines fanning from the base.
+
     const ray = Math.pow(Math.abs(Math.cos(a * rayCount * Math.PI)), 6);
     const k = (0.58 + 0.26 * ray) * tint;
-    // Membranes wash out toward the trailing edge, as thin tissue does.
+
     const p = pale * u;
     let r = rgb[0] * k, g = rgb[1] * k, b = rgb[2] * k;
     r += (C_WHITE[0] - r) * p;
@@ -554,13 +474,9 @@ function makeFinShader(sBase, sSpan, rayCount, baseAlpha, tint, pale) {
   };
 }
 
-// Built once: they read the current koi through AR/AG/AB, so one instance
-// each serves every fish and no closures are allocated per frame.
 const SHADE_CAUDAL = makeFinShader(0.90, 0.10, 9, 240, 1.10, 0.52);
 const SHADE_PAIRED = makeFinShader(0.40, 0.08, 5, 205, 1.05, 0.55);
 const SHADE_DORSAL = makeFinShader(0.45, 0.25, 7, 240, 0.70, 0.12);
-
-// ------------------------------------------------------------------ draw
 
 function sampleFinAxis(t, out) {
   const f = t * FIN_SEG;
@@ -584,12 +500,12 @@ function drawCaudal(f) {
   for (let ia = 0; ia <= NA; ia++) {
     const a = (ia / NA) * 2 - 1;
     const aa = Math.abs(a);
-    // Forked tail: the outer lobes reach further back than the centre notch.
+
     const reach = 0.68 + 0.32 * Math.pow(aa, 1.3);
     for (let iu = 0; iu <= NU; iu++) {
       const u = iu / NU;
       sampleFinAxis(u * reach, AX);
-      // Start at the peduncle's own width so the fin joins the body cleanly.
+
       const spread = a * (pedW + (f.finSpan - pedW) * Math.pow(u, 0.8));
       const o = (ia * (NU + 1) + iu) * 2;
       ptsA[o]     = AX[0] + AX[2] * spread * ax;
@@ -615,23 +531,22 @@ function drawCaudal(f) {
   }
 }
 
-// A fan of rays rooted on the body edge: pectorals and pelvics.
 function drawPairedFin(f, sPos, side, length, phi0, phi1, flap, shade) {
   const ax = 1 / DOT_ASPECT;
   const i = Math.round(sPos * SEG);
   const bx = spX[i] + spNX[i] * side * widthProfile(sPos) * f.W * 0.95 * ax;
   const by = spY[i] + spNY[i] * side * widthProfile(sPos) * f.W * 0.95;
-  const tx = spTX[i], ty = spTY[i];                // tangent already runs aft
-  const nx = spNX[i] * side, ny = spNY[i] * side;  // pointing outboard
+  const tx = spTX[i], ty = spTY[i];
+  const nx = spNX[i] * side, ny = spNY[i] * side;
 
   const RA = 12, RU = 6;
-  const root = length * 0.26;   // fins hinge along a line, not a single point
+  const root = length * 0.26;
   const A = [0,0,0,0], B = [0,0,0,0], C = [0,0,0,0], D = [0,0,0,0];
   const px = (u, a) => {
     const phi = phi0 + (phi1 - phi0) * (a * 0.5 + 0.5) + flap;
     const dx = tx * Math.cos(phi) + nx * Math.sin(phi);
     const dy = ty * Math.cos(phi) + ny * Math.sin(phi);
-    // Leading rays (most outboard) root forward; trailing rays sweep aft.
+
     const ox = bx - tx * a * root * 0.5 * ax;
     const oy = by - ty * a * root * 0.5;
     const r = length * u * (0.80 + 0.20 * Math.cos(a * 1.4));
@@ -653,7 +568,6 @@ function drawPairedFin(f, sPos, side, length, phi0, phi1, flap, shade) {
 }
 
 function drawDorsal(f) {
-  // Seen from above the dorsal reads as a low ridge leaning with the roll.
   const ax = 1 / DOT_ASPECT;
   const s0 = 0.33, s1 = 0.70;
   const lean = f.roll * 0.8;
@@ -661,7 +575,6 @@ function drawDorsal(f) {
   const N = 14;
   const A = [0,0,0,0], B = [0,0,0,0], C = [0,0,0,0], D = [0,0,0,0];
 
-  // A narrow crest straddling the spine, leaning with the roll.
   const pt = (t, h) => {
     const s = s0 + (s1 - s0) * t;
     const i = Math.round(s * SEG);
@@ -705,7 +618,7 @@ function drawBody(f) {
 
 function drawBarbels(f) {
   const ax = 1 / DOT_ASPECT;
-  // The whiskers that make a koi a koi.
+
   const h = 0;
   const hw = widthProfile(0) * f.W;
   for (let side = -1; side <= 1; side += 2) {
@@ -729,11 +642,6 @@ function drawBarbels(f) {
   }
 }
 
-// --------------------------------------------------------------- ripples
-
-// Rain on the pond, drawn before the koi so they swim over it. Several rings
-// can be open at once, but never on top of each other: a new drop is only
-// placed where it has room to grow without touching a live one.
 const ripples = [];
 const MAX_RIPPLES = 4;
 const PLACE_TRIES = 20;
@@ -749,7 +657,6 @@ function spawnRipple() {
     const x = Math.random() * dotW;
     const y = Math.random() * dotH;
 
-    // Clear of every live ring at its own full size, so the two never meet.
     let clear = true;
     for (const rp of ripples) {
       const dx = (x - rp.x) * DOT_ASPECT;
@@ -760,12 +667,11 @@ function spawnRipple() {
 
     ripples.push({
       x, y, r: 0, max,
-      speed: 20 + Math.random() * 9,        // visual units per second
+      speed: 20 + Math.random() * 9,
       thickness: 1.6 + Math.random() * 0.5,
     });
     return;
   }
-  // Pond too crowded right now; the next tick tries again.
 }
 
 function updateRipples(dt) {
@@ -787,7 +693,6 @@ function drawRipples() {
     const life = 1 - rp.r / rp.max;
     if (life <= 0) continue;
 
-    // Same aspect trick as the fish: x is measured in wider dots than y.
     const reach = (rp.r + rp.thickness + 1) / DOT_ASPECT;
     const x0 = Math.max(0, Math.floor(rp.x - reach));
     const x1 = Math.min(dotW - 1, Math.ceil(rp.x + reach));
@@ -810,13 +715,9 @@ function drawRipples() {
   }
 }
 
-
-// ---------------------------------------------------------------- output
-
 let prevX0 = 0, prevY0 = 0, prevX1 = -1, prevY1 = -1;
 
 function present() {
-  // Only repaint the cells the fish touches, plus whatever it just left.
   let c0 = 0, r0 = 0, c1 = -1, r1 = -1;
   if (bbX1 >= bbX0) {
     c0 = (bbX0 / 2) | 0; c1 = (bbX1 / 2) | 0;
@@ -855,7 +756,7 @@ function present() {
           const idx = rowOff + px;
           const a = bufA[idx];
           if (a === 0) continue;
-          // Ordered dithering turns alpha into dot density.
+
           if (a < BAYER[(py & 3) * 4 + (px & 3)]) continue;
           bits |= BIT[dy][dx];
           sr += bufR[idx]; sg += bufG[idx]; sb += bufB[idx]; n++;
@@ -867,7 +768,6 @@ function present() {
         continue;
       }
 
-      // Quantise so adjacent cells share a fill style and batch into one run.
       const q = 24;
       const r = Math.min(255, Math.round(sr / n / q) * q);
       const g = Math.min(255, Math.round(sg / n / q) * q);
@@ -886,8 +786,6 @@ function present() {
   }
 }
 
-// Colour strings are rebuilt and re-parsed on every run otherwise, and there
-// are a few hundred runs per frame. Quantisation caps the set at ~1300.
 const styleCache = new Map();
 
 function flush(run, col, row, key) {
@@ -899,8 +797,6 @@ function flush(run, col, row, key) {
   ctx.fillStyle = style;
   ctx.fillText(run, col * CHAR_W, row * CHAR_H);
 }
-
-// ------------------------------------------------------------------ boot
 
 function resize() {
   DPR = Math.min(window.devicePixelRatio || 1, 2);
@@ -928,21 +824,13 @@ function resize() {
 
   visW = dotW * DOT_ASPECT;
   visH = dotH;
-  ripples.length = 0;  // their centres are in dot coords, now stale
+  ripples.length = 0;
 
   eraseRect(0, 0, w, h);
   prevX0 = 0; prevY0 = 0; prevX1 = -1; prevY1 = -1;
 
-  // Re-seed whichever scene is running: every scene stores positions in dot
-  // coordinates, which the new grid has just invalidated.
   if (scene && scene.enter) scene.enter();
 }
-
-// --- scenes -------------------------------------------------------------
-// The Braille framebuffer, the dirty-rect bookkeeping and the text output are
-// generic; only what gets drawn into them is not. A scene owns that part, so
-// another page can swap the koi pond for something else without duplicating
-// any of the machinery below.
 
 const koiScene = {
   enter() { resetFish(); ripples.length = 0; },
@@ -953,12 +841,6 @@ const koiScene = {
   draw() { drawKoiScene(); },
 };
 
-/* A page names its backdrop on <body data-scene>. That scene registers itself
-   from its own script, which loads after this one, so it cannot be selected
-   here — but starting on the koi in the meantime paints a few frames of them
-   before the real scene takes over. Hold the loop idle instead until the page
-   applies its choice; only a page that asks for the koi, or asks for nothing,
-   starts drawing straight away. */
 const wanted = document.body && document.body.dataset.scene;
 let scene = (!wanted || wanted === 'koi') ? koiScene : null;
 
@@ -966,12 +848,9 @@ function drawKoiScene() {
   drawRipples();
 
   for (const f of fishes) {
-    // The spine scratch buffers and AR/AG/AB hold one koi at a time, so each
-    // fish is rebuilt and drawn to completion before the next one starts.
     buildSpine(f);
     AR = f.pattern.R; AG = f.pattern.G; AB = f.pattern.B;
 
-    // Painter's order: fins behind, body over them, dorsal and barbels on top.
     drawCaudal(f);
     const flapP = Math.sin(f.phase * 0.45) * 0.22;
     drawPairedFin(f, 0.57,  1, f.L * 0.15, 0.25, 0.85,  flapP, SHADE_PAIRED);
@@ -989,12 +868,8 @@ let paused = false;
 let rafId = 0;
 
 function frame(now) {
-  // Stop requesting frames rather than idling through them: during a view
-  // transition the browser is already snapshotting and compositing the whole
-  // viewport, and this canvas is the heaviest thing in it.
   if (paused) { rafId = 0; return; }
 
-  // Idle until the page has chosen its scene.
   if (!scene) { last = 0; rafId = requestAnimationFrame(frame); return; }
 
   const t = now * 0.001;
@@ -1004,7 +879,6 @@ function frame(now) {
 
   scene.update(dt);
 
-  // Clear only what was drawn last frame.
   if (bbX1 >= bbX0) {
     for (let y = Math.max(0, bbY0); y <= Math.min(dotH - 1, bbY1); y++) {
       bufA.fill(0, y * dotW + Math.max(0, bbX0), y * dotW + Math.min(dotW, bbX1 + 1));
@@ -1014,24 +888,19 @@ function frame(now) {
 
   scene.draw();
 
-  // Pad the box so dithered fringes are not clipped.
   if (bbX1 >= bbX0) { bbX0 -= 2; bbY0 -= 2; bbX1 += 2; bbY1 += 2; }
 
   present();
   rafId = STILL ? 0 : requestAnimationFrame(frame);
 }
 
-// A full-bleed animation is exactly what this setting is for: draw the koi
-// once and leave them be.
 const STILL = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 let lastW = 0, lastH = 0, resizeTimer = 0;
 
 function onResize() {
   const w = window.innerWidth, h = window.innerHeight;
-  // Mobile browsers fire resize as the URL bar slides away. The canvas sits on
-  // a page of the same colour, so a height-only nudge is not worth restarting
-  // the swim for.
+
   if (w === lastW && Math.abs(h - lastH) < 140) return;
   lastW = w; lastH = h;
   resize();
@@ -1048,8 +917,6 @@ window.addEventListener('resize', () => {
 });
 requestAnimationFrame(frame);
 
-// Minimal surface for other scenes: the drawing primitives plus a way to take
-// over the loop. Everything here already works in dot coordinates.
 window.BrailleBG = {
   scenes: { koi: koiScene },
   use(next) {
@@ -1063,7 +930,7 @@ window.BrailleBG = {
   resume() {
     if (!paused) return;
     paused = false;
-    last = 0;                 // so the first frame back does not jump
+    last = 0;
     if (!rafId) rafId = requestAnimationFrame(frame);
   },
   setDot, touch, tri, quad,
