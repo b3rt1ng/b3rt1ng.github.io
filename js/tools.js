@@ -99,7 +99,7 @@ function renderGrid() {
 
   for (const t of TOOLS) {
     const card = el('a', 'tool-card');
-    card.href = '#' + t.slug;
+    card.href = '/' + t.slug + '/';
     card.dataset.slug = t.slug;
     card.addEventListener('click', ev => {
       if (ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.button !== 0) return;
@@ -355,8 +355,17 @@ function applyScene(slug) {
   else BG.use(next);
 }
 
+function slugFromPath() {
+  const seg = decodeURIComponent(location.pathname)
+    .replace(/\/index\.html$/, '')
+    .replace(/\/+$/, '')
+    .split('/')
+    .pop();
+  return bySlug.has(seg) ? seg : '';
+}
+
 function route() {
-  const slug = decodeURIComponent(location.hash.replace(/^#/, ''));
+  const slug = slugFromPath();
   if (slug) showTool(slug);
   else showGrid();
   applyScene(slug);
@@ -379,12 +388,12 @@ function play(el) {
 }
 
 function open(slug) {
-  history.pushState(null, '', '#' + slug);
+  history.pushState(null, '', '/' + slug + '/');
   route();
 }
 
 function toGrid() {
-  history.pushState(null, '', location.pathname);
+  history.pushState(null, '', '/tools/');
   route();
 }
 
@@ -398,6 +407,5 @@ if (window.EdgeBack) {
 
 renderGrid();
 route();
-window.addEventListener('hashchange', route);
 window.addEventListener('popstate', route);
 })();

@@ -18,14 +18,14 @@ const SITE_LINKS = [
     name: 'Tools',
     icon: 'tools',
     handle: 'what I build',
-    url: 'tools.html',
+    url: '/tools/',
     internal: true,
   },
   {
     name: 'Writeups',
     icon: 'writeups',
     handle: 'CTF and HackTheBox',
-    url: 'writeups.html',
+    url: '/writeups/',
     internal: true,
   },
 ];

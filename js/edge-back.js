@@ -10,7 +10,7 @@ const sides = [];
 
 function activate() {
   if (handler && handler()) return;
-  const go = () => { location.href = 'index.html'; };
+  const go = () => { location.href = '/'; };
   if (window.PageFade) window.PageFade.out(go); else go();
 }
 
