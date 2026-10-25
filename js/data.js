@@ -84,11 +84,12 @@ const TOOLS = [
       ['pypi', 'https://pypi.org/project/octocrawl/'],
     ],
     body: [
-      { h: 'Why an octopus' },
-      'Eight arms reaching down different paths at once is what concurrent crawling ' +
-      'actually looks like, which is where the name came from. The background on this ' +
-      'page is the same idea: each arm moves on its own cadence, reaching out and ' +
-      'drawing back, none of them in step.',
+      { h: 'Why an octopus ?' },
+      'I like deep sea animals and the parallelism made me think of tentacles reaching out in different directions.',
+      { h: 'what\'s next?' },
+      'This tool has been made mostly with random scratch code and ugly spaghetti code, to make my CTF and BB life easier.' +
+      'So this tool has been optimized for my own use and should be fast and efficient (at leat I tried to make it like so),' +
+      'but in the future I will do a refactor to make it more readable and maintainable, make the features more modular and add more features',
       { h: 'Getting started' },
       { code: 'octocrawl -u https://example.com', lang: 'bash' },
       { h: 'Examples' },
@@ -127,9 +128,9 @@ const TOOLS = [
       ['PTY upgrade', 'Raw shell to full PTY, with tab completion, Ctrl+C forwarding and terminal resizing.'],
       ['Tunneling', 'Turn a shell into a Layer 3 pivot: userland TCP stack on the target, no root, no dropped binary.'],
       ['Obfuscator', 'Chainable payload obfuscation (XOR, hex, format strings, char arrays) to get past Defender.'],
-      ['Modules', 'Post-exploitation, file transfer, enumeration, AD collection. Extensible with your own.'],
+      ['Modules', 'Post-exploitation, file transfer, enumeration, AD collection and more. Extensible with your own.'],
       ['MCP server', 'Expose sessions and modules to an LLM client, read-only by default.'],
-      ['Session logging', 'Every session recorded automatically, replayable with koireview.'],
+      ['Session logging', 'Every session recorded automatically, readable with koireview.'],
       ['Screenable mode', 'Masks IPs and MACs so you can stream or demo safely.'],
     ],
     install: 'pipx install koi-handler',
@@ -142,7 +143,11 @@ const TOOLS = [
       { h: 'What it does' },
       'Catches reverse shells, upgrades them to full PTYs, and keeps as many as you ' +
       'need side by side. From there it pivots: a userland TCP stack on the target ' +
-      'turns a shell into a Layer 3 route, with no root and no binary dropped on disk.',
+      'turns a shell into a Layer 3 route.',
+      { h: 'My little yapping on this project'},
+      'This is my most ambitious project yet, and I\'m very proud of how it turned out. I think it still needs more work especially' +
+      ' on the windows pty upgrade part. The goal was to make reverse shells smooth to use with as much redondant tasks automated as possible' +
+      ', it tured out to be not as hard as I thought, and now I\'m working on the OPSEC aspects of it.',
       { h: 'Getting started' },
       { code: 'koi --help', lang: 'bash' },
       { h: 'Examples' },
