@@ -83,6 +83,12 @@ main {
   padding: 0 1rem;
 }
 
+.main--half {
+  width: min(100% - 2rem, max(34rem, 50vw));
+  max-width: none;
+  padding: 0;
+}
+
 .section {
   padding: clamp(3.5rem, 9vw, 6rem) 0 0;
   scroll-margin-top: 1rem;
@@ -455,6 +461,8 @@ pre.cmd code::before { content: '$ '; color: var(--pumpkin); }
 }
 .wu-doc__source a { color: var(--faint); text-decoration: underline; }
 .wu-doc__source a:hover { color: var(--coral); }
+
+.main--half .md { max-width: none; }
 
 .md {
   max-width: 74ch;

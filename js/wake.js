@@ -23,7 +23,8 @@ const G = 9.81;
 const WIND_SPEED = 9.5;
 const WIND_DIR = 0.42;
 const CAPILLARY = 3.5;
-const SWELL = [134, 137, 139];
+const SWELL_LOW = [116, 119, 121];
+const SWELL_HIGH = [164, 168, 171];
 const CREST_T = 0.28;
 const SWELL_A = 66;
 
@@ -295,6 +296,8 @@ function mix(a, b, u) {
   col[2] = a[2] + (b[2] - a[2]) * u;
 }
 
+const swell = [0, 0, 0];
+
 function drawSwell() {
   const d = dims();
   if (!patch) return;
@@ -318,7 +321,11 @@ function drawSwell() {
 
       if (h <= CREST_T) continue;
 
-      dot(x, y, SWELL, SWELL_A * Math.sqrt((h - CREST_T) * span));
+      const u = Math.min(1, (h - CREST_T) * span);
+      swell[0] = SWELL_LOW[0] + (SWELL_HIGH[0] - SWELL_LOW[0]) * u;
+      swell[1] = SWELL_LOW[1] + (SWELL_HIGH[1] - SWELL_LOW[1]) * u;
+      swell[2] = SWELL_LOW[2] + (SWELL_HIGH[2] - SWELL_LOW[2]) * u;
+      dot(x, y, swell, SWELL_A * Math.sqrt(u));
     }
   }
 }

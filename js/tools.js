@@ -119,13 +119,12 @@ function renderGrid() {
 
     const foot = el('span', 'tool-card__foot');
     if (t.status) foot.append(el('span', 'chip chip--on', t.status));
-    const pkg = pypiName(t);
-    const versionChip = t.version || pkg ? el('span', 'chip', t.version ? 'v' + t.version : 'v...') : null;
+    const versionChip = t.version || t.repo ? el('span', 'chip', t.version ? 'v' + t.version : 'v...') : null;
     if (versionChip) foot.append(versionChip);
     card.append(foot);
 
-    if (pkg && versionChip) {
-      pkgVersion(pkg).then(v => {
+    if (t.repo && versionChip) {
+      repoVersion(t.repo).then(v => {
         versionChip.textContent = 'v' + v;
       }).catch(() => {  });
     }
@@ -165,15 +164,27 @@ async function repoStats(repo) {
   return data;
 }
 
-function pypiName(t) {
-  const hit = (t.links || []).find(([label]) => label === 'pypi');
-  if (!hit) return null;
-  const m = /pypi\.org\/project\/([^/?#]+)/.exec(hit[1]);
-  return m ? m[1] : null;
+async function rawFile(repo, path) {
+  const res = await fetch(`https://raw.githubusercontent.com/${repo}/HEAD/${path}`);
+  if (!res.ok) throw new Error(String(res.status));
+  return res.text();
 }
 
-async function pkgVersion(name) {
-  const key = 'pypi:' + name;
+function versionFromToml(toml) {
+  let table = '';
+  for (const line of toml.split('\n')) {
+    const text = line.trim();
+    const header = /^\[([^\]]+)\]/.exec(text);
+    if (header) { table = header[1]; continue; }
+    if (table !== 'project') continue;
+    const m = /^version\s*=\s*["']([^"']+)["']/.exec(text);
+    if (m) return m[1];
+  }
+  return null;
+}
+
+async function repoVersion(repo) {
+  const key = 'ver:' + repo;
   const hit = cacheGet(key);
   if (hit) {
     try {
@@ -182,9 +193,18 @@ async function pkgVersion(name) {
     } catch {  }
   }
 
-  const res = await fetch(`https://pypi.org/pypi/${encodeURIComponent(name)}/json`);
-  if (!res.ok) throw new Error(String(res.status));
-  const data = (await res.json()).info.version;
+  const toml = await rawFile(repo, 'pyproject.toml');
+  let data = versionFromToml(toml);
+
+  if (!data) {
+    const hatch = /\[tool\.hatch\.version\][^[]*?path\s*=\s*["']([^"']+)["']/.exec(toml);
+    if (hatch) {
+      const found = /v?(\d[^\s"']*)/.exec((await rawFile(repo, hatch[1])).trim());
+      data = found ? found[1] : null;
+    }
+  }
+
+  if (!data) throw new Error('no version');
   cacheSet(key, JSON.stringify({ at: Date.now(), data }));
   return data;
 }
@@ -242,16 +262,13 @@ function renderFigures(t) {
   if (t.repo) host.append(figure('…', 'stars', 'figure--live'));
   if (t.version) host.append(figure('v' + t.version, '', 'figure--version'));
 
-  const pkg = pypiName(t);
-  if (pkg) {
-    pkgVersion(pkg).then(v => {
-      if (currentSlug !== t.slug) return;
-      const cell = host.querySelector('.figure--version .figure__v');
-      if (cell) cell.textContent = 'v' + v;
-    }).catch(() => {  });
-  }
-
   if (!t.repo) return;
+
+  repoVersion(t.repo).then(v => {
+    if (currentSlug !== t.slug) return;
+    const cell = host.querySelector('.figure--version .figure__v');
+    if (cell) cell.textContent = 'v' + v;
+  }).catch(() => {  });
 
   repoStats(t.repo).then(d => {
     if (currentSlug !== t.slug) return;
